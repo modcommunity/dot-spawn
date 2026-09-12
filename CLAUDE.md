@@ -72,3 +72,32 @@ The suite checks two directors agree over forty choices **and** that a different
 It does not move anything, does not raycast, and does not know what health is. `can_see_fn` is supplied by the game because this addon has no opinion about which collision layers count and dot-physics already does.
 
 It also does not replace dot-match's `DotSpawnPoint`/`DotSpawnSelector`, which stay where they are. Those are the match's own view — one point per player, picked by danger, dependency-free, enough for a deathmatch. Using both means deciding which one the match asks, and the game makes that call.
+
+## `MetaMatchesRequest`, and the case the other four conditions do not cover
+
+`MetaEquals` compares a site against a constant fixed when the condition was built — "this
+director only spawns people at an attacker site". Nothing compared a site against the
+**request**, so a game whose entry points differ per player had two options: build one
+director per answer, or pick the site itself and leave the director choosing nothing.
+
+Picking it yourself is one line, so that is what every game in this family had done. A
+timer course whose every track starts somewhere else, an objective mode whose sites belong
+to a point, a squad that spawns together, a class with its own door — all the same shape,
+and all of them had a director configured and never asked.
+
+`DotSpawnRequest.make` takes an `extra` dictionary for it, and **duplicates** it: a caller
+that builds one dictionary and reuses it for every request would otherwise have every
+request share one object.
+
+A request that does not carry the field at all matches **every** site rather than none.
+"I did not ask" is not "I asked for nothing" — a caller with no opinion about the track
+wants the ordinary selection over all of them, and refusing everything would turn an
+unasked question into a map with no spawns.
+
+## Protection is granted in exactly one place, and that is worth knowing before wiring it
+
+`DotSpawnProtection.grant` is called inside [method DotSpawnDirector.choose] and nowhere
+else. A game that keeps its own spawn placement and ticks `protection.advance` beside it
+has an empty ledger being drained for ever — which reads exactly like working spawn
+protection and is the shape every game in this family shipped first. If `choose` is not on
+the live path, neither is the window.

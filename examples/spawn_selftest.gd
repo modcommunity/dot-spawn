@@ -12,7 +12,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 10
-const CHECKS := 162
+const CHECKS := 170
 
 const RATE := 64
 
@@ -296,6 +296,66 @@ func _test_conditions() -> void:
 		not meta.allows(mismatched, {}),
 		"comparing a number against a string answers false rather than erroring, "
 		+ "because DotValue.same is total where == is not"
+	)
+
+	# --- And the same question asked of the REQUEST ---------------------------
+	#
+	# The condition that was missing, and the one a game with more than one kind of
+	# entry point needs: a timer course whose every track starts somewhere else, an
+	# objective mode whose sites belong to a point, a class with its own door. Without
+	# it a game picks the site itself and the director chooses nothing.
+	var per := DotSpawnConditions.MetaMatchesRequest.new("track")
+	var main_site := DotSpawnSite.point(&"main", Vector3.ZERO)
+	main_site.meta = {"track": 0}
+	var bonus_site := DotSpawnSite.point(&"bonus", Vector3.ONE)
+	bonus_site.meta = {"track": 1}
+
+	var wants_bonus := {"extra": {"track": 1}}
+	_check(per.allows(bonus_site, wants_bonus), "a per-request condition matches the request")
+	_check(
+		not per.allows(main_site, wants_bonus),
+		"and refuses the site the request did not ask for"
+	)
+
+	# The distinction that keeps an unasked question from emptying the map.
+	_check(
+		per.allows(main_site, {}) and per.allows(bonus_site, {}),
+		"a request that carries no such field matches every site, because 'I did not "
+		+ "ask' is not 'I asked for nothing'"
+	)
+
+	var untagged := DotSpawnSite.point(&"any", Vector3.ZERO)
+	_check(
+		per.allows(untagged, wants_bonus),
+		"a site with no opinion is usable by anybody by default"
+	)
+	per.require_site_meta = true
+	_check(
+		not per.allows(untagged, wants_bonus),
+		"and is refused once the director says every site must declare one"
+	)
+
+	# The site key and the request key are allowed to differ, because the level file and
+	# the game code are not written by the same person.
+	var renamed := DotSpawnConditions.MetaMatchesRequest.new("zone", "objective")
+	var point_site := DotSpawnSite.point(&"p", Vector3.ZERO)
+	point_site.meta = {"zone": &"mid"}
+	_check(
+		renamed.allows(point_site, {"extra": {"objective": &"mid"}}),
+		"a request key that differs from the site key is matched across"
+	)
+
+	# `extra` is carried by `make`, which is what a caller actually uses.
+	var carried := DotSpawnRequest.make("ada", &"blue", &"rifleman", 12, {"track": 3})
+	_check(int(carried.extra.get("track", -1)) == 3, "make() carries the extra field")
+
+	var shared := {"track": 4}
+	var one := DotSpawnRequest.make("a", &"", &"", 0, shared)
+	shared["track"] = 9
+	_check(
+		int(one.extra.get("track", -1)) == 4,
+		"and duplicates it, so a caller reusing one dictionary does not rewrite a "
+		+ "request it already made"
 	)
 
 

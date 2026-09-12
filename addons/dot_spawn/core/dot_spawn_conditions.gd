@@ -2,11 +2,11 @@
 class_name DotSpawnConditions
 extends RefCounted
 
-## The four conditions every project writes, so that no project has to write them.
+## The five conditions every project writes, so that no project has to write them.
 ##
-## Together in one file on purpose: they are eighty lines between them, they are read as
-## a set, and four files each holding one twenty-line subclass is four files somebody has
-## to find. Anything longer than these belongs in its own file, as
+## Together in one file on purpose: they are a hundred lines between them, they are read
+## as a set, and five files each holding one twenty-line subclass is five files somebody
+## has to find. Anything longer than these belongs in its own file, as
 ## [DotSpawnCondition] documents.
 
 
@@ -137,3 +137,68 @@ class MetaEquals extends DotSpawnCondition:
 
 	func reason() -> String:
 		return "its '%s' is not %s" % [key, str(want)]
+
+
+## Refuses a site whose meta does not match what the [b]request[/b] asked for.
+##
+## [b][MetaEquals]'s sibling, and the difference is where the wanted value comes
+## from.[/b] `MetaEquals` compares a site against a constant fixed when the condition was
+## built — "this director only ever spawns people at an attacker site". This one compares
+## it against a field of the request, so one director can serve a question whose answer is
+## different per player.
+##
+## That is the case every game with more than one kind of entry point has and none of the
+## other four covers: a timer course where each track starts somewhere else, an objective
+## mode where a site belongs to a point, a squad that spawns together, a class with its
+## own door. Without it a game either builds one director per answer or picks the site
+## itself and leaves the director choosing nothing — which is what happens in practice,
+## because picking it yourself is one line.
+##
+## [codeblock]
+## spawns.conditions = [DotSpawnConditions.MetaMatchesRequest.new("track")]
+## spawns.choose(DotSpawnRequest.make(key, team, klass, tick, {"track": 2}))
+## [/codeblock]
+##
+## A request that does not carry the field at all matches [b]every[/b] site rather than
+## none, because "I did not ask" is not "I asked for nothing" — a caller with no opinion
+## about the track wants the ordinary selection over all of them, and refusing everything
+## would make an unasked question a map with no spawns.
+class MetaMatchesRequest extends DotSpawnCondition:
+	## The site meta key, and by default the request `extra` key as well.
+	var key: String = ""
+
+	## The request's `extra` key, when it differs from the site's.
+	var request_key: String = ""
+
+	## Whether a site missing the key is refused. Off: a site with no opinion is usable
+	## by anybody, which is what a general-purpose site in a map full of specific ones is.
+	var require_site_meta: bool = false
+
+	func _init(
+		p_key: String = "", p_request_key: String = "", p_require: bool = false
+	) -> void:
+		key = p_key
+		request_key = p_request_key
+		require_site_meta = p_require
+		id = StringName("meta_matches_%s" % p_key)
+
+	func allows(site: DotSpawnSite, context: Dictionary) -> bool:
+		if key == "":
+			return true
+
+		var from_request: String = request_key if request_key != "" else key
+		var extra: Dictionary = context.get("extra", {})
+
+		if not extra.has(from_request):
+			return true
+
+		if not site.meta.has(key):
+			return not require_site_meta
+
+		# DotValue rather than ==, for [MetaEquals]' reason: one side comes from a level
+		# file and the other from game code, and == on two different Variant types is a
+		# runtime error that abandons the whole expression rather than answering false.
+		return DotValue.same(site.meta[key], extra[from_request])
+
+	func reason() -> String:
+		return "its '%s' is not the one the request asked for" % key
