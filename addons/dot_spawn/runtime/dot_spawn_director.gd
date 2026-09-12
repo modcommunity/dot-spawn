@@ -419,14 +419,28 @@ func _context(request: DotSpawnRequest) -> Dictionary:
 ## [b]Never a shared member.[/b] A single stream makes a spawn depend on how many other
 ## spawns happened first, so a server that processed two deaths this tick and a client
 ## that saw one get different points — and the player materialises in two places.
+##
+## [b]The seed is mixed by [DotRandomStream], not by hand.[/b] This used to fold the key
+## in with [code]hash(request.key)[/code], and Godot's [method String.hash] is 32-bit and
+## is not promised to be stable across engine versions — so the same seed, the same tick
+## and the same key could pick a different spawn point after an engine upgrade, on a
+## machine that upgraded before the one it is playing against. [method
+## DotRandomStream.stream] hashes the name with FNV-1a over its bytes, which is the same
+## number for ever.
+##
+## Still returns a [RandomNumberGenerator]: the samplers a host supplies are declared as
+## [code]func(rng: RandomNumberGenerator)[/code] and that is a published extension point.
+## What changed is where the seed comes from, not what a caller is handed.
 func _rng(request: DotSpawnRequest) -> RandomNumberGenerator:
+	var stream := DotRandomStream.new(rules.seed_value, &"spawn")
+
+	if rules.per_key_stream and not request.key.is_empty():
+		stream = stream.stream(StringName(request.key))
+
 	var rng := RandomNumberGenerator.new()
-	var s := rules.seed_value ^ (request.tick * 2654435761)
-
-	if rules.per_key_stream:
-		s ^= int(hash(request.key))
-
-	rng.seed = s
+	# `at` rather than `next`: the draw must not depend on how many spawns came
+	# before it, which is the same reason this function exists at all.
+	rng.seed = stream.at(request.tick)
 	return rng
 
 
