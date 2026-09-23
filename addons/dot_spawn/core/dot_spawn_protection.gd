@@ -13,7 +13,9 @@ extends RefCounted
 ## clock and a simulation disagree about how long two seconds is exactly when it
 ## matters — under load, in the fight the protection was for.
 
-const CHANNEL := "spawn.protection"
+# No log channel: a ledger asked once per hit and once per tick. Every change it makes
+# is a signal (granted, ended with a reason), and a line per grant would be one per
+# spawn; DotSpawnDirector, which decides the spawn, is what logs.
 
 ## Somebody's protection ended, and why: [code]&"expired"[/code],
 ## [code]&"attacked"[/code], [code]&"left"[/code] or [code]&"revoked"[/code].

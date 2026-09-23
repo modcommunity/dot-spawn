@@ -92,6 +92,9 @@ var key_of: Callable = Callable()
 
 var _inside: Dictionary = {}
 
+## Whether the missing-[member key_of] warning has been written, so it is written once.
+var _warned_no_key: bool = false
+
 
 func _ready() -> void:
 	if Engine.is_editor_hint():
@@ -99,6 +102,13 @@ func _ready() -> void:
 
 	body_entered.connect(_on_body_entered)
 	body_exited.connect(_on_body_exited)
+
+	# The editor says this in the scene tree; a dedicated server never opens one, so
+	# the same configuration warning is said once more where an operator will see it.
+	if safe_zone and team == &"" and safe_for_owning_team_only:
+		DotLog.warn(CHANNEL, "a team-only safe zone has no team, so it protects nobody", {
+			"area": String(site_id) if site_id != &"" else String(name),
+		})
 
 
 func to_site() -> DotSpawnSite:
@@ -237,6 +247,14 @@ func describe() -> String:
 
 func _on_body_entered(body: Node3D) -> void:
 	if not key_of.is_valid():
+		# Once, and only for a safe zone: without key_of nothing that enters is ever an
+		# occupant, so a zone drawn to protect people silently protects nobody. WARN,
+		# because it is wiring a game forgot, and it looks exactly like working.
+		if safe_zone and not _warned_no_key:
+			_warned_no_key = true
+			DotLog.warn(CHANNEL, "a safe zone has no key_of, so nothing inside it is protected", {
+				"area": String(site_id) if site_id != &"" else String(name),
+			})
 		return
 
 	var key := str(key_of.call(body))
