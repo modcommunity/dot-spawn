@@ -193,7 +193,10 @@ func wave_interval_ticks(tick_rate: int) -> int:
 
 ## Everybody anywhere, three seconds later, no protection.
 static func deathmatch() -> DotSpawnRules:
-	var r := DotSpawnRules.new()
+	# Not this class's own name. A script that names itself in an expression, loaded after
+	# its base, cuts Godot 4.7.2's exit teardown short and leaks every script loaded before
+	# it. See docs/gdscript-hazards.md, "A script that names itself".
+	var r := new()
 	r.mode = Mode.RANDOM
 	r.respawn_delay_sec = 3.0
 	r.protection_sec = 0.0
@@ -203,7 +206,7 @@ static func deathmatch() -> DotSpawnRules:
 
 ## Team sides, safest-first, five seconds, two seconds of protection.
 static func team_deathmatch() -> DotSpawnRules:
-	var r := DotSpawnRules.new()
+	var r := new()
 	r.mode = Mode.SAFEST
 	r.respawn_delay_sec = 5.0
 	r.protection_sec = 2.0
@@ -214,7 +217,7 @@ static func team_deathmatch() -> DotSpawnRules:
 
 ## One spawn at the start of a round and no respawning at all.
 static func elimination() -> DotSpawnRules:
-	var r := DotSpawnRules.new()
+	var r := new()
 	r.mode = Mode.SAFEST
 	r.respawn_enabled = false
 	r.protection_sec = 0.0
@@ -223,7 +226,7 @@ static func elimination() -> DotSpawnRules:
 
 ## Waves every ten seconds, protection while the gate is open.
 static func objective() -> DotSpawnRules:
-	var r := DotSpawnRules.new()
+	var r := new()
 	r.mode = Mode.NEAREST_FRIEND
 	r.wave_respawn = true
 	r.wave_interval_sec = 10.0
@@ -235,7 +238,7 @@ static func objective() -> DotSpawnRules:
 
 ## One start point, used every time. A course, a tutorial, a timed run.
 static func single_start() -> DotSpawnRules:
-	var r := DotSpawnRules.new()
+	var r := new()
 	r.mode = Mode.FIRST
 	r.respawn_delay_sec = 0.0
 	r.cooldown_ticks = 0
@@ -246,11 +249,11 @@ static func single_start() -> DotSpawnRules:
 
 static func presets() -> Dictionary:
 	return {
-		&"deathmatch": Callable(DotSpawnRules, "deathmatch"),
-		&"team_deathmatch": Callable(DotSpawnRules, "team_deathmatch"),
-		&"elimination": Callable(DotSpawnRules, "elimination"),
-		&"objective": Callable(DotSpawnRules, "objective"),
-		&"single_start": Callable(DotSpawnRules, "single_start"),
+		&"deathmatch": deathmatch,
+		&"team_deathmatch": team_deathmatch,
+		&"elimination": elimination,
+		&"objective": objective,
+		&"single_start": single_start,
 	}
 
 
@@ -261,4 +264,6 @@ static func preset(p_id: StringName) -> DotSpawnRules:
 		return null
 
 	var fn: Callable = table[p_id]
-	return fn.call() as DotSpawnRules
+	# Returned through the declared type rather than cast to this class by name; see the
+	# note on the presets above.
+	return fn.call()
