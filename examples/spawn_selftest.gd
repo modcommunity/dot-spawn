@@ -12,7 +12,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 10
-const CHECKS := 170
+const CHECKS := 171
 
 const RATE := 64
 
@@ -469,6 +469,15 @@ func _test_selection() -> void:
 		"and a site an enemy is looking at loses badly — spawning in front of somebody "
 		+ "already aiming is the worst thing a selector does"
 	)
+
+	# A two-argument callable is told who is spawning: the one way a player respawned while
+	# alive is not counted as their own nearest enemy.
+	var asked := [""]
+	d.enemies_fn = func(_team: StringName, key: String) -> Array:
+		asked[0] = key
+		return []
+	var _keyed: DotResult = d.choose_from(vis_sites, DotSpawnRequest.make("grace", &"", &"", 0))
+	_check(asked[0] == "grace", "a callable that takes the key is told who is spawning")
 
 	_check(d.describe_lines().size() > 1, "a director describes itself")
 	_check(d.score_of(vis_sites[1], DotSpawnRequest.make("ada", &"", &"", 0)) != 0.0,

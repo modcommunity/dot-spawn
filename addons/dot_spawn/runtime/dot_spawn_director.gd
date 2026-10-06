@@ -12,6 +12,7 @@ extends Node
 ## var spawns := DotSpawnDirector.new()
 ## spawns.rules = DotSpawnRules.team_deathmatch()
 ## spawns.enemies_fn = func(team): return positions_of_enemies_of(team)
+## spawns.enemies_fn = func(team, key): return positions_of_enemies_of(team, key)   # or with the spawning key
 ## add_child(spawns)
 ## spawns.refresh()
 ##
@@ -396,11 +397,14 @@ func _context(request: DotSpawnRequest) -> Dictionary:
 	var enemies: Array = []
 	var friends: Array = []
 
+	# The spawning key too, when the callable takes it: a player who is respawned while still
+	# alive (a map change, an admin) is otherwise their own nearest enemy, standing on the site
+	# being scored. One-argument callables are still called with the team alone.
 	if enemies_fn.is_valid():
-		enemies = enemies_fn.call(request.team)
+		enemies = enemies_fn.call(request.team, request.key) if enemies_fn.get_argument_count() >= 2 else enemies_fn.call(request.team)
 
 	if friends_fn.is_valid():
-		friends = friends_fn.call(request.team)
+		friends = friends_fn.call(request.team, request.key) if friends_fn.get_argument_count() >= 2 else friends_fn.call(request.team)
 
 	return {
 		"key": request.key,
