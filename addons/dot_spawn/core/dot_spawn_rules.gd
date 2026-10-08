@@ -115,7 +115,7 @@ func env_prefix() -> String:
 
 
 func cli_prefix() -> String:
-	return "spawn-"
+	return "--spawn-"
 
 
 func validate() -> DotResult:
