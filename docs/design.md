@@ -1,0 +1,59 @@
+# dot-spawn design
+
+Why the addon is shaped the way it is, and why the obvious alternative is wrong at each point. The rules are one line each in [CLAUDE.md](../CLAUDE.md).
+
+## Everything that decides works on `DotSpawnSite` values
+
+A `DotSpawnMarker3D` produces one, a `DotSpawnArea2D` produces one, a level generator produces one out of nothing. From there the filtering, the scoring and the picking are pure functions over an array, which is why `choose_from` is public and takes its own array: a test, a replay and a server all reach the same answer with no world at all. The suite loads no level.
+
+The one place the tree is touched is `DotSpawnDirector.refresh`, and it collects by `has_method("to_site")` rather than by type, because the contract this addon needs is "can produce a site", not "is one of my four node classes", and a game writing its own marker should not have to subclass one.
+
+`refresh()` keeps each site's `last_used_tick`. A director that collected fresh sites every time would reset every cooldown on any call to it; "spawn cooldowns reset when the map reloads" is correct, while "spawn cooldowns reset whenever anything refreshes" is a bug that only appears under load.
+
+## Vetoes and opinions are different things
+
+`DotSpawnCondition` has two methods on purpose. `allows()` removes a site from the pool; `bonus()` moves its score. A condition that expresses a veto as a large penalty will still pick the forbidden site when it is the only one left, and the round where that happens is the round where it matters.
+
+`DotSpawnConditions.MinimumEnemyDistance` is the shipped example: there is a distance at which a spawn is not a bad spawn but a death, and no amount of scoring elsewhere should be able to buy it back.
+
+`OutOfSight` deliberately has no opinion when no `can_see` callable is supplied, rather than assuming the worst. A condition that penalised every site equally would leave the selector with the same ordering it had and a score that looks like it did something.
+
+## `MetaMatchesRequest`: a site against the request
+
+`MetaEquals` compares a site against a constant fixed when the condition was built ("this director only spawns people at an attacker site"). `MetaMatchesRequest` compares a site against the request, for a game whose entry points differ per player: a timer course whose every track starts somewhere else, an objective mode whose sites belong to a point, a squad that spawns together, a class with its own door. Without it a game builds one director per answer, or picks the site itself and leaves the director choosing nothing.
+
+`DotSpawnRequest.make` takes an `extra` dictionary for it, and duplicates it: a caller that builds one dictionary and reuses it for every request would otherwise have every request share one object.
+
+A request that does not carry the field at all matches every site rather than none. "I did not ask" is not "I asked for nothing": a caller with no opinion about the track wants the ordinary selection over all of them, and refusing everything would turn an unasked question into a map with no spawns.
+
+## The fallback is not optional
+
+When every site fails, one is used anyway, loudly. A round where nobody spawns is a black screen, and a black screen is indistinguishable from a crash from the player's side. The compromise is reported three ways (`DotSpawnChoice.fell_back`, a warning, and the director's `fell_back` signal) because a map whose conditions can never all be satisfied is a content bug with no other symptom.
+
+`fall_back_when_nothing_passes` can be turned off by a game that would rather know, and `DotSpawnRules.validate()` refuses the one combination where that is certainly wrong: a hard distance floor with no fallback.
+
+## One generator per request
+
+`_rng` derives a fresh generator from `seed_value`, the request's tick and (with `per_key_stream`) its key, using dot-core's `DotRandomStream.at`, and is never a member. A shared stream makes a spawn depend on how many other spawns happened first, so a server that processed two deaths this tick and a client that saw one get different points, and the player materialises in two places.
+
+The suite checks that two directors agree over many choices and that a different seed disagrees. The second half is the negative control; the same discipline as dot-player-controller's replay-determinism test.
+
+## Node traps
+
+`site_priority`, not `priority`: `Area2D` and `Area3D` already have a `priority` (the order overlapping areas are processed in), and GDScript refuses the collision. The markers use the same name so the four nodes read alike.
+
+`measured_extents` halves the box: `BoxShape3D.size` is a full size and `DotSpawnSite.extents` are half-extents. The other reading doubles the area silently and puts half the spawns outside the volume somebody drew.
+
+## Protection is a ledger, not a behaviour
+
+`DotSpawnProtection` grants, expires and revokes. It never touches health, never subscribes to a damage signal and never knows what a weapon is. `blocks(attacker, victim, tick, world_damage)` is the whole interface a damage system needs, and it answers about the pair: self damage is never blocked, because a rocket jump out of your own spawn is on purpose and protecting it turns a two-second window into a free movement technique.
+
+`advance()` is necessary even though `is_protected` already compares against the tick. Without it the dictionary only grows and the `ended` signal never fires for the ordinary case, so a HUD badge that hides on that signal never hides.
+
+`DotSpawnProtection.grant` is called inside `DotSpawnDirector.choose` and nowhere else. A game that keeps its own spawn placement and ticks `protection.advance` beside it has an empty ledger being drained for ever, which reads exactly like working spawn protection. If `choose` is not on the live path, neither is the window.
+
+## What it deliberately does not do
+
+It does not move anything, does not raycast, and does not know what health is. `can_see_fn` is supplied by the game, because this addon has no opinion about which collision layers count and dot-physics already does.
+
+It does not replace dot-match's `DotSpawnPoint` / `DotSpawnSelector`, which stay where they are. Those are the match's own view: one point per player, picked by danger, dependency-free, enough for a deathmatch. Using both means deciding which one the match asks, and the game makes that call.
