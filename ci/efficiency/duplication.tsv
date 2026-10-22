@@ -1,0 +1,4 @@
+# duplication
+# Baselines only shrink: scripts/<gate> --update lowers or drops entries and refuses to add.
+addons/dot_spawn/nodes/dot_spawn_area_2d.gd	49
+addons/dot_spawn/nodes/dot_spawn_area_3d.gd	49
