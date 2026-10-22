@@ -11,7 +11,9 @@ signal removed(entity: Variant, reason: StringName)
 signal pool_empty
 
 const KIND := "spawner"
-const ADDON := "dot-spawn"
+const ADDON := "dot_spawn"
+## The folder before the underscore rename; read through [DotCfgLegacy] until its removal date.
+const LEGACY_ADDON := "dot-spawn"
 const RESPAWN_PICKUP := "on_pickup"
 const RESPAWN_TIMER := "on_timer"
 
@@ -214,8 +216,27 @@ static func profile_set(game: String) -> DotProfileSet:
 static func from_profile(set: DotProfileSet, profile_id: String, p_factory: Callable) -> DotResult:
 	var res := set.load_profile(profile_id)
 	if not res.ok:
+		var old := _legacy_set(set)
+		if old.list_ids().has(profile_id) and not set.list_ids().has(profile_id):
+			res = old.load_profile(profile_id)
+	if not res.ok:
 		return res
 	return from_values(profile_id, res.value.get_value, p_factory)
+
+
+## The same set over the pre-rename folder `cfg/addons/dot-spawn/`; warns once per file found there.
+static func _legacy_set(set: DotProfileSet) -> DotProfileSet:
+	var old := DotProfileSet.create(LEGACY_ADDON, set.game, KIND, schema())
+	old.roots = set.roots
+	old.cmdline = set.cmdline
+	old.user_root = set.user_root
+	old.user_tier_enabled = set.user_tier_enabled
+	for root in (set.roots if not set.roots.is_empty() else DotProfileSet.default_roots()):
+		var base := root.path_join("addons")
+		for id in old.list_ids():
+			DotCfgLegacy.find(base.path_join(LEGACY_ADDON).path_join(KIND).path_join(id + ".yml"),
+				base.path_join(ADDON).path_join(KIND).path_join(id + ".yml"))
+	return old
 
 
 ## Builds one from any getter `func(key) -> Variant` (a loaded profile's get_value, or a test's dictionary).

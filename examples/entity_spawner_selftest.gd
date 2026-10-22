@@ -2,8 +2,8 @@ extends Node
 
 ## Exercises DotEntitySpawner with a fake clock: pools, caps, respawn timing, seeds, profiles.
 
-const SECTIONS := 8
-const CHECKS := 49
+const SECTIONS := 9
+const CHECKS := 54
 
 var _passed := 0
 var _failed := 0
@@ -20,6 +20,7 @@ func _ready() -> void:
 	_test_profile()
 	_test_bad_input()
 	_test_disabled()
+	_test_legacy_folder()
 	_test_watch_and_example()
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -246,6 +247,27 @@ func _test_bad_input() -> void:
 		_check(not r.ok, "'%s' is refused" % pid)
 	var r2 := DotEntitySpawner.from_profile(_profile_set(), "empty", _factory)
 	_check(not r2.ok and r2.error.code == DotError.CODE_INVALID, "an empty pool is CODE_INVALID")
+
+
+func _test_legacy_folder() -> void:
+	_section("the dashed cfg/addons/dot-spawn folder")
+	DotCfgLegacy.reset()
+	var base := "user://entity_spawner_test/cfg/addons/dot-spawn/spawner"
+	DirAccess.make_dir_recursive_absolute(base)
+	_write(base.path_join("old.yml"), "what: pistol\n")
+	var r := DotEntitySpawner.from_profile(_profile_set(), "old", _factory)
+	_check(r.ok, "a profile in the old dashed folder still loads")
+	_check(DotCfgLegacy.warned_count() == 1, "and warns once")
+	DotEntitySpawner.from_profile(_profile_set(), "old", _factory)
+	_check(DotCfgLegacy.warned_count() == 1, "not twice")
+	var new_dir := "user://entity_spawner_test/cfg/addons/dot_spawn/spawner"
+	DirAccess.make_dir_recursive_absolute(new_dir)
+	_write(new_dir.path_join("old.yml"), "what: shotgun\n")
+	var r2 := DotEntitySpawner.from_profile(_profile_set(), "old", _factory)
+	_check(r2.ok and r2.value.pool[0]["id"] == &"shotgun", "the new folder wins when both exist")
+	_check(DotEntitySpawner.ADDON == "dot_spawn", "the profile set reads the underscored folder")
+	DirAccess.remove_absolute(base.path_join("old.yml"))
+	DirAccess.remove_absolute(new_dir.path_join("old.yml"))
 
 
 func _test_disabled() -> void:

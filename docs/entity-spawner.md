@@ -37,7 +37,7 @@ Delays and positions draw from one `DotRandomStream` seeded by `seed`, so the sa
 
 ## Profiles: kind `spawner`
 
-`cfg/addons/dot_spawn/spawner/<id>.yml`, `cfg/game/<game>/spawner/<id>.yml`, server and user tiers as [dot-core profiles](../../dot-core/docs/profiles.md). Keys: `what` or `pool` (a list of `id`, `weight`, `stock`; not both), `count`, `max_alive`, `interval`, `respawn_delay`, `initial_delay`, `radius`, `jitter`, `respawn`, `enabled`, `phases`, `server_only`, `seed`. Unknown keys fail.
+`cfg/addons/dot_spawn/spawner/<id>.yml` (the dashed `dot-spawn` folder is still read through `DotCfgLegacy` until 2026-12-31), `cfg/game/<game>/spawner/<id>.yml`, server and user tiers as [dot-core profiles](../../dot-core/docs/profiles.md). Keys: `what` or `pool` (a list of `id`, `weight`, `stock`; not both), `count`, `max_alive`, `interval`, `respawn_delay`, `initial_delay`, `radius`, `jitter`, `respawn`, `enabled`, `phases`, `server_only`, `seed`. Unknown keys fail.
 
 ```gdscript
 var set := DotEntitySpawner.profile_set("mygame")
