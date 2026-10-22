@@ -1,0 +1,12 @@
+# Example: a pickup that respawns 20 s after it is taken. A game overrides keys in cfg/game/<game>/spawner/.
+pool:
+  - id: pistol
+    weight: 3
+  - id: shotgun
+    weight: 1
+count: 1
+respawn: on_pickup
+respawn_delay: 20.0
+initial_delay: 2.0
+jitter: 0.1
+radius: 0.5
