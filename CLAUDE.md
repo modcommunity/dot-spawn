@@ -11,6 +11,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first.
 | Read | Before |
 | --- | --- |
 | [docs/design.md](docs/design.md) | changing anything: sites as values, vetoes vs opinions, `MetaMatchesRequest`, the fallback, one generator per request, node traps, protection, what it does not do |
+| [docs/map-data-tools.md](docs/map-data-tools.md) | the planned mover watch and cull, strategies and spread, authored points, the map data store and bundle, admin tools: which addon owns each |
 
 ## Layout
 
