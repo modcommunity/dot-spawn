@@ -37,7 +37,7 @@ Delays and positions draw from one `DotRandomStream` seeded by `seed`, so the sa
 
 ## Profiles: kind `spawner`
 
-`cfg/addons/dot-spawn/spawner/<id>.yml`, `cfg/game/<game>/spawner/<id>.yml`, server and user tiers as [dot-core profiles](../../dot-core/docs/profiles.md). Keys: `what` or `pool` (a list of `id`, `weight`, `stock`; not both), `count`, `max_alive`, `interval`, `respawn_delay`, `initial_delay`, `radius`, `jitter`, `respawn`, `enabled`, `phases`, `server_only`, `seed`. Unknown keys fail.
+`cfg/addons/dot_spawn/spawner/<id>.yml`, `cfg/game/<game>/spawner/<id>.yml`, server and user tiers as [dot-core profiles](../../dot-core/docs/profiles.md). Keys: `what` or `pool` (a list of `id`, `weight`, `stock`; not both), `count`, `max_alive`, `interval`, `respawn_delay`, `initial_delay`, `radius`, `jitter`, `respawn`, `enabled`, `phases`, `server_only`, `seed`. Unknown keys fail.
 
 ```gdscript
 var set := DotEntitySpawner.profile_set("mygame")
@@ -64,7 +64,7 @@ s.factory = func(weapon_id: StringName, pos: Vector3, _i: int) -> Variant:
     return pickup
 ```
 
-`cfg/addons/dot-spawn/spawner/weapon_crate.yml` is a weighted pool of two weapons that respawns 20 seconds after a pickup.
+`cfg/addons/dot_spawn/spawner/weapon_crate.yml` is a weighted pool of two weapons that respawns 20 seconds after a pickup.
 
 ## Test
 
