@@ -25,6 +25,7 @@ The factory returns the entity (anything; an `Object` is also tracked for being 
 | `initial_delay` | seconds before the first spawns; then `count` entities appear (clamped to `max_alive`) |
 | `respawn: on_pickup` | each removal schedules one replacement after `respawn_delay`; nothing else spawns |
 | `respawn: on_timer` | one more every `interval` while fewer than `max_alive` are alive |
+| `respawn: on_trigger` | nothing spawns until the host calls `trigger(n)` (default `count`); `max_alive` still caps it |
 | `jitter` | each delay varies by up to this fraction either way (0 to 1) |
 | `radius` | entities land at a random point in this circle on the XZ plane around `origin` |
 | `max_alive` | hard cap; 0 in a profile means `count` |
@@ -33,11 +34,11 @@ Delays and positions draw from one `DotRandomStream` seeded by `seed`, so the sa
 
 ## Gating
 
-`enabled`, `phases` (empty means always; the host calls `set_phase("live")`), and `server_only` with `is_authority`: a client that is not the authority does nothing. While gated off the clock still runs and due respawns wait. Pool entries may carry a `stock`; at 0 they are no longer drawn.
+`enabled`, `phases` (empty means always; the host calls `set_phase("live")`), and `server_only` with `is_authority`: a client that is not the authority does nothing. While gated off the clock still runs and due respawns wait. Pool entries may carry a `stock`; at 0 they are no longer drawn. Entries may also carry `team`, `class` and `max_alive` (a per-entry cap); `team_limit` and `class_limit` cap the living entities sharing one team or class tag. A capped entry is not drawn until one dies.
 
 ## Profiles: kind `spawner`
 
-`cfg/addons/dot_spawn/spawner/<id>.yml` (the dashed `dot-spawn` folder is still read through `DotCfgLegacy` until 2026-12-31), `cfg/game/<game>/spawner/<id>.yml`, server and user tiers as [dot-core profiles](../../dot-core/docs/profiles.md). Keys: `what` or `pool` (a list of `id`, `weight`, `stock`; not both), `count`, `max_alive`, `interval`, `respawn_delay`, `initial_delay`, `radius`, `jitter`, `respawn`, `enabled`, `phases`, `server_only`, `seed`. Unknown keys fail.
+`cfg/addons/dot_spawn/spawner/<id>.yml` (the dashed `dot-spawn` folder is still read through `DotCfgLegacy` until 2026-12-31), `cfg/game/<game>/spawner/<id>.yml`, server and user tiers as [dot-core profiles](../../dot-core/docs/profiles.md). Keys: `what` or `pool` (a list of `id`, `weight`, `stock`; not both), `count`, `max_alive`, `interval`, `respawn_delay`, `initial_delay`, `radius`, `jitter`, `respawn`, `enabled`, `phases`, `team_limit`, `class_limit`, `server_only`, `seed`. Unknown keys fail.
 
 ```gdscript
 var set := DotEntitySpawner.profile_set("mygame")

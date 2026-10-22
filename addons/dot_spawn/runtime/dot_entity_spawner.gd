@@ -16,6 +16,8 @@ const ADDON := "dot_spawn"
 const LEGACY_ADDON := "dot-spawn"
 const RESPAWN_PICKUP := "on_pickup"
 const RESPAWN_TIMER := "on_timer"
+## Nothing spawns until the host calls [method trigger].
+const RESPAWN_TRIGGER := "on_trigger"
 
 ## Profile id, for describe() and logs.
 var id: StringName = &""
@@ -43,6 +45,10 @@ var jitter := 0.0
 var respawn := RESPAWN_PICKUP
 ## Phases it is active in; empty means always.
 var phases := PackedStringArray()
+## At most this many living entities per distinct pool-entry `team` (0 is no limit).
+var team_limit := 0
+## At most this many living entities per distinct pool-entry `class` (0 is no limit).
+var class_limit := 0
 ## Optional DotSpawnWatch or DotSpawnCull: anything with report(id, pos, kind, has_goal) / forget(id).
 var watch: Object = null
 var watch_kind: StringName = &"entity"
@@ -55,6 +61,8 @@ var _started := false
 var _next_timer := 0.0
 var _due: Array[float] = []
 var _alive: Array = []
+var _alive_entry: Array = []
+var _triggers := 0
 var _positions := {}
 var _index := 0
 var _spawn_total := 0
@@ -77,9 +85,16 @@ func set_what(what: StringName) -> void:
 	pool = [{"id": what, "weight": 1.0, "stock": -1}]
 
 
-## Adds a weighted pool entry; [param stock] -1 never runs out.
-func add_entry(what: StringName, weight: float = 1.0, stock: int = -1) -> void:
-	pool.append({"id": what, "weight": weight, "stock": stock})
+## Adds a weighted pool entry; [param stock] -1 never runs out. [param extra] may carry `team`, `class` and `max_alive` (0 is no per-entry cap).
+func add_entry(what: StringName, weight: float = 1.0, stock: int = -1, extra: Dictionary = {}) -> void:
+	var e := {"id": what, "weight": weight, "stock": stock}
+	e.merge(extra)
+	pool.append(e)
+
+
+## Asks for [param n] spawns on the next [method advance] (for `respawn: on_trigger`); the caps still apply.
+func trigger(n: int = -1) -> void:
+	_triggers += count if n < 0 else n
 
 
 ## Names the current game phase; the spawner is active only in its `phases`.
@@ -111,7 +126,7 @@ func notify_removed(entity: Variant, reason: StringName = &"picked_up") -> void:
 	var at := _alive.find(entity)
 	if at < 0:
 		return
-	_alive.remove_at(at)
+	_drop(at)
 	_forget(entity)
 	if respawn == RESPAWN_PICKUP:
 		_due.append(_clock + _delay(respawn_delay))
@@ -125,6 +140,11 @@ func advance(delta: float) -> Array:
 	if not is_active():
 		return made
 	_sweep()
+	if respawn == RESPAWN_TRIGGER:
+		while _triggers > 0 and _alive.size() < max_alive:
+			_triggers -= 1
+			_try_spawn(made)
+		return made
 	if not _started:
 		if _clock < initial_delay:
 			return made
@@ -149,7 +169,7 @@ func advance(delta: float) -> Array:
 ## Removes every living entity (through [member remover] when set) and keeps the pool.
 func despawn_all() -> void:
 	for e in _alive.duplicate():
-		_alive.erase(e)
+		_drop(_alive.find(e))
 		_forget(e)
 		if remover.is_valid():
 			remover.call(e)
@@ -162,6 +182,7 @@ func reset() -> void:
 	_clock = 0.0
 	_started = false
 	_due.clear()
+	_triggers = 0
 	_spawn_total = 0
 	_index = 0
 	_empty_reported = false
@@ -194,9 +215,11 @@ static func schema() -> Array:
 		f.call("initial_delay", "float", 0.0, {"min": 0.0, "max": 86400.0}),
 		f.call("radius", "float", 0.0, {"min": 0.0, "max": 10000.0}),
 		f.call("jitter", "float", 0.0, {"min": 0.0, "max": 1.0}),
-		f.call("respawn", "string", RESPAWN_PICKUP, {"enum": [RESPAWN_PICKUP, RESPAWN_TIMER]}),
+		f.call("respawn", "string", RESPAWN_PICKUP, {"enum": [RESPAWN_PICKUP, RESPAWN_TIMER, RESPAWN_TRIGGER]}),
 		f.call("enabled", "bool", true),
 		f.call("phases", "list", []),
+		f.call("team_limit", "int", 0, {"min": 0, "max": 1000}),
+		f.call("class_limit", "int", 0, {"min": 0, "max": 1000}),
 		f.call("server_only", "bool", true),
 		f.call("seed", "int", 0),
 	]
@@ -255,7 +278,8 @@ static func from_values(p_id: String, getter: Callable, p_factory: Callable) -> 
 		var w := float(e.get("weight", 1.0))
 		if is_nan(w) or is_inf(w) or w < 0.0:
 			return DotResult.fail(DotError.CODE_INVALID, "spawner '%s': bad weight for '%s'" % [p_id, e["id"]])
-		s.add_entry(StringName(str(e["id"])), w, int(e.get("stock", -1)))
+		s.add_entry(StringName(str(e["id"])), w, int(e.get("stock", -1)),
+			{"team": str(e.get("team", "")), "class": str(e.get("class", "")), "max_alive": int(e.get("max_alive", 0))})
 	var total := 0.0
 	for e in s.pool:
 		total += e["weight"]
@@ -274,13 +298,15 @@ static func from_values(p_id: String, getter: Callable, p_factory: Callable) -> 
 	s.enabled = bool(getter.call("enabled"))
 	s.server_only = bool(getter.call("server_only"))
 	s.phases = PackedStringArray(getter.call("phases"))
+	s.team_limit = int(getter.call("team_limit"))
+	s.class_limit = int(getter.call("class_limit"))
 	return DotResult.success(s)
 
 
 func _try_spawn(made: Array) -> void:
 	var weights := PackedFloat32Array()
 	for e in pool:
-		weights.append(0.0 if e["stock"] == 0 else e["weight"])
+		weights.append(0.0 if e["stock"] == 0 or _capped(e) else e["weight"])
 	var at := _rng.next_weighted(weights)
 	if at < 0:
 		if not _empty_reported:
@@ -302,6 +328,7 @@ func _try_spawn(made: Array) -> void:
 	if entry["stock"] > 0:
 		entry["stock"] -= 1
 	_alive.append(entity)
+	_alive_entry.append(entry)
 	made.append(entity)
 	if entity is Object:
 		_positions[entity.get_instance_id()] = pos
@@ -313,10 +340,32 @@ func _try_spawn(made: Array) -> void:
 func _sweep() -> void:
 	for e in _alive.duplicate():
 		if typeof(e) == TYPE_OBJECT and not is_instance_valid(e):
-			_alive.erase(e)
+			_drop(_alive.find(e))
 			if respawn == RESPAWN_PICKUP:
 				_due.append(_clock + _delay(respawn_delay))
 			removed.emit(null, &"freed")
+
+
+func _drop(at: int) -> void:
+	if at >= 0:
+		_alive.remove_at(at)
+		_alive_entry.remove_at(at)
+
+
+## Whether drawing [param entry] would break its own cap or the team or class limit.
+func _capped(entry: Dictionary) -> bool:
+	var cap := int(entry.get("max_alive", 0))
+	var team := str(entry.get("team", ""))
+	var cls := str(entry.get("class", ""))
+	var same := 0
+	var in_team := 0
+	var in_class := 0
+	for a in _alive_entry:
+		same += 1 if a == entry else 0
+		in_team += 1 if team != "" and str(a.get("team", "")) == team else 0
+		in_class += 1 if cls != "" and str(a.get("class", "")) == cls else 0
+	return (cap > 0 and same >= cap) or (team_limit > 0 and in_team >= team_limit) \
+		or (class_limit > 0 and in_class >= class_limit)
 
 
 func _forget(entity: Variant) -> void:

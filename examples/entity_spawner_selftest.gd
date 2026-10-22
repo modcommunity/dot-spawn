@@ -2,8 +2,8 @@ extends Node
 
 ## Exercises DotEntitySpawner with a fake clock: pools, caps, respawn timing, seeds, profiles.
 
-const SECTIONS := 9
-const CHECKS := 54
+const SECTIONS := 10
+const CHECKS := 62
 
 var _passed := 0
 var _failed := 0
@@ -22,6 +22,7 @@ func _ready() -> void:
 	_test_disabled()
 	_test_legacy_folder()
 	_test_watch_and_example()
+	_test_trigger_and_limits()
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
 	if _section_count != SECTIONS:
@@ -318,6 +319,49 @@ func _test_watch_and_example() -> void:
 	var e := s2.advance(0.0)
 	_check(e.size() == 1 and e[0].get_meta("what") == &"pistol", "the example factory receives the weapon id")
 	_check("DotEntitySpawner" in s2.describe() and s2.describe_lines().size() == 2, "describe lists the pool")
+
+
+func _test_trigger_and_limits() -> void:
+	_section("trigger and team/class limits")
+	var s := _spawner()
+	s.respawn = DotEntitySpawner.RESPAWN_TRIGGER
+	s.max_alive = 3
+	s.count = 2
+	s.set_what(&"wave")
+	_check(_run(s, 10).is_empty(), "on_trigger spawns nothing by itself")
+	s.trigger()
+	_check(_run(s, 1).size() == 2, "a trigger spawns count entities")
+	s.trigger(5)
+	_check(_run(s, 1).size() == 1 and s.alive_count() == 3, "max_alive caps a trigger")
+	var t := _spawner()
+	t.respawn = DotEntitySpawner.RESPAWN_TIMER
+	t.interval = 1.0
+	t.max_alive = 10
+	t.team_limit = 2
+	t.add_entry(&"a", 1.0, -1, {"team": "red"})
+	t.add_entry(&"b", 1.0, -1, {"team": "blue"})
+	_run(t, 60)
+	_check(t.alive_count() == 4, "team_limit 2 allows two per team across two teams")
+	var u := _spawner()
+	u.respawn = DotEntitySpawner.RESPAWN_TIMER
+	u.interval = 1.0
+	u.max_alive = 10
+	u.add_entry(&"boss", 1.0, -1, {"max_alive": 1})
+	_run(u, 20)
+	_check(u.alive_count() == 1, "a per-entry max_alive holds")
+	u.notify_removed(u._alive[0])
+	_run(u, 5)
+	_check(u.alive_count() == 1, "and frees when the entity is gone")
+	var v := _spawner()
+	v.respawn = DotEntitySpawner.RESPAWN_TIMER
+	v.interval = 1.0
+	v.max_alive = 10
+	v.class_limit = 1
+	v.add_entry(&"x", 1.0, -1, {"class": "tank"})
+	_run(v, 10)
+	_check(v.alive_count() == 1, "class_limit 1 holds")
+	var res := DotEntitySpawner.from_values("p", func(k): return {"seed": 0, "what": "", "pool": [{"id": "z", "team": "red"}], "count": 1, "max_alive": 4, "interval": 1.0, "respawn_delay": 1.0, "initial_delay": 0.0, "radius": 0.0, "jitter": 0.0, "respawn": "on_trigger", "enabled": true, "server_only": true, "phases": [], "team_limit": 1, "class_limit": 0}[k], _factory)
+	_check(res.ok and res.value.team_limit == 1 and res.value.pool[0]["team"] == "red", "a profile carries the limits and entry tags")
 
 
 func _section(title: String) -> void:
