@@ -66,6 +66,9 @@ var last_used_tick: int = -1000000
 ## How many things are standing on it right now, as the game last reported.
 var occupants: int = 0
 
+## Where the site came from: `map` (the level's own), `authored` (placed by hand later) or `generated` (made by the game's generate_fn). The `map` strategy ignores generated ones.
+var source: StringName = &"map"
+
 
 static func point(
 	p_id: StringName,

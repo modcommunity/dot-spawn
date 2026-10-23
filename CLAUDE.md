@@ -26,7 +26,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first.
 | `core/dot_spawn_protection.gd` | `DotSpawnProtection`: who is briefly un-killable, `blocks`, `advance`, `ended` |
 | `core/dot_spawn_watch.gd`, `dot_spawn_cull.gd`, `dot_spawn_cull_rules.gd` | `DotSpawnWatch` (stuck, off nav, fell out, unreachable, far verdicts, time-sliced), `DotSpawnCull` (one `DotSpawnDecision` per mover: nudge, teleport, despawn, kill), `DotSpawnCullRules` (`DOT_SPAWN_CULL_*`, `--cull-*`, off by default); the host applies decisions through callables |
 | `nodes/` | `DotSpawnMarker3D`, `DotSpawnMarker2D`, `DotSpawnArea3D` (optionally a safe zone), `DotSpawnArea2D`; each has `to_site()` |
-| `runtime/dot_spawn_director.gd` | `DotSpawnDirector`: `refresh`, `choose`, `choose_from`, respawn timing, `can_see_fn` |
+| `runtime/dot_spawn_director.gd` | `DotSpawnDirector`: `refresh`, `choose`, `choose_from`, `choose_batch` (the `spread` strategy keeps a batch apart), `ensure_generated` (`generate_fn`, cached per map id and version), respawn timing, `can_see_fn` |
 | `runtime/dot_entity_spawner.gd` | `DotEntitySpawner`: factory-driven spawner for any entity from a `spawner` profile ([docs/entity-spawner.md](docs/entity-spawner.md)) |
 | `examples/spawn_selftest.tscn`, `entity_spawner_selftest.tscn` | the suites: no level loaded |
 

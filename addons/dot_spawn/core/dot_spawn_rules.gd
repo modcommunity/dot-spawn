@@ -53,6 +53,28 @@ var mode: int = 0
 ## crash. Better a bad spawn, logged, than no spawn.
 @export var fall_back_when_nothing_passes: bool = true
 
+@export_group("Strategy")
+
+## Ordered, comma-separated strategies; the first that yields a site wins.
+##
+## `map` picks by [member mode] among the level's own sites (the behaviour before strategies existed), `spread` sends a batch to different parts of the pool, `near_team` and `far_from_enemies` are the NEAREST_FRIEND and FURTHEST modes by name.
+@export var strategy: String = "map"
+
+## The distance spread tries to keep between picks and living team-mates, in metres.
+@export_range(0.0, 1000.0, 0.5) var spread_distance: float = 20.0
+
+## The floor spread halves its distance down to before it takes the farthest site there is.
+@export_range(0.0, 1000.0, 0.5) var spread_min: float = 4.0
+
+## Whether the game's generate_fn adds sites: `off`, `when_few` (fewer sites than [member generate_count]) or `always`.
+@export_enum("off", "when_few", "always") var generate: String = "off"
+
+## Sites generate_fn is asked for, and the count below which `when_few` generates.
+@export_range(1, 10000, 1) var generate_count: int = 24
+
+## Free space generate_fn is asked to leave round each generated site, in metres.
+@export_range(0.0, 100.0, 0.1) var generate_clearance: float = 1.0
+
 @export_group("Randomness")
 
 ## The seed a run's spawn choices derive from.
@@ -118,7 +140,29 @@ func cli_prefix() -> String:
 	return "--spawn-"
 
 
+## The strategy names, in order. Empty entries are dropped.
+func strategies() -> PackedStringArray:
+	var out := PackedStringArray()
+
+	for part in strategy.split(","):
+		var name := part.strip_edges()
+		if name != "":
+			out.append(name)
+
+	return out
+
+
+const STRATEGIES := ["map", "spread", "near_team", "far_from_enemies"]
+
+
 func validate() -> DotResult:
+	for name in strategies():
+		if not STRATEGIES.has(name):
+			return DotResult.fail(DotError.CODE_INVALID, "Unknown spawn strategy '%s'." % name)
+
+	if spread_min > spread_distance:
+		return DotResult.fail(DotError.CODE_INVALID, "spread_min %.1f is above spread_distance %.1f." % [spread_min, spread_distance])
+
 	if wave_respawn and wave_interval_sec <= 0.0:
 		return DotResult.fail(
 			DotError.CODE_INVALID,

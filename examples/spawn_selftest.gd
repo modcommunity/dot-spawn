@@ -11,8 +11,8 @@ extends Node
 ## godot --headless --path . res://examples/spawn_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 12
-const CHECKS := 213
+const SECTIONS := 13
+const CHECKS := 224
 
 const RATE := 64
 
@@ -42,6 +42,7 @@ func _run() -> void:
 	_test_areas()
 	_test_watch()
 	_test_cull()
+	_test_strategies()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
@@ -1125,6 +1126,68 @@ func _test_cull() -> void:
 		c2.apply(c2.process(w.advance(dt)))
 		elapsed += dt
 	_check(nudged.size() == 2 and removed == ["pinned"], "end to end: a pinned mover is nudged twice, then despawned once (%d, %d)" % [nudged.size(), removed.size()])
+
+func _test_strategies() -> void:
+	_section("Strategies and spread")
+	var rules := DotSpawnRules.new()
+	_check(rules.strategy == "map" and rules.validate().ok, "the default strategy is map and is valid")
+	rules.strategy = "spread, nonsense"
+	_check(not rules.validate().ok, "an unknown strategy name is refused")
+	rules.strategy = "spread,map"
+	_check(rules.strategies() == PackedStringArray(["spread", "map"]), "strategies are an ordered list")
+
+	rules.strategy = "spread"
+	rules.spread_distance = 10.0
+	rules.spread_min = 5.0
+	var d := _director(rules)
+
+	for ix in range(5):
+		for iz in range(4):
+			d.add_site(DotSpawnSite.point(StringName("g%d_%d" % [ix, iz]), Vector3(ix * 10.0, 0.0, iz * 10.0)))
+
+	var requests: Array[DotSpawnRequest] = []
+	for i in range(8):
+		requests.append(DotSpawnRequest.make("p%d" % i, &"", &"", 100))
+
+	var res := d.choose_batch(requests)
+	_check(res.ok and (res.value as Array).size() == 8, "a batch of 8 on 20 sites is answered")
+	var min_gap := INF
+	var picked: Array = res.value
+	for i in range(picked.size()):
+		for j in range(i + 1, picked.size()):
+			min_gap = minf(min_gap, (picked[i] as DotSpawnChoice).transform.origin.distance_to((picked[j] as DotSpawnChoice).transform.origin))
+	_check(min_gap >= rules.spread_distance, "the batch keeps every pair at least the spread distance apart (min %.1f)" % min_gap)
+
+	var again := d.choose_batch(requests)
+	var same := again.ok
+	for i in range(8):
+		same = same and (again.value[i] as DotSpawnChoice).site.id == (picked[i] as DotSpawnChoice).site.id
+	_check(same, "the same batch on the same tick is the same answer")
+
+	rules.strategy = "map"
+	var plain := d.choose_batch(requests)
+	_check(plain.ok and (plain.value as Array).size() == 8, "the map strategy still answers a batch")
+
+	var calls := [0]
+	d.generate_fn = func(count: int, _clearance: float, _map: String) -> Array:
+		calls[0] += 1
+		var out: Array = []
+		for i in range(count):
+			out.append(DotSpawnSite.point(StringName("gen%d" % i), Vector3(500.0 + i, 0.0, 0.0)))
+		return out
+	_check(d.ensure_generated("m", 1) == 0 and calls[0] == 0, "generation is off by default")
+	rules.generate = "always"
+	rules.generate_count = 6
+	var added := d.ensure_generated("m", 1)
+	var again_added := d.ensure_generated("m", 1)
+	_check(added == 6 and again_added == 6 and calls[0] == 1 and d.sites().size() == 26, "generated sites are added once per map version, from the cache (%d calls)" % calls[0])
+	rules.strategy = "map"
+	var far_only := d.choose(DotSpawnRequest.make("x", &"", &"", 1))
+	_check(far_only.ok and (far_only.value as DotSpawnChoice).site.source == &"map", "the map strategy never picks a generated site")
+	rules.generate = "when_few"
+	rules.generate_count = 10
+	_check(d.ensure_generated("m", 1) == 0 and d.sites().size() == 20, "when_few generates nothing for a map with enough sites")
+
 
 # --- Harness ---------------------------------------------------------------
 

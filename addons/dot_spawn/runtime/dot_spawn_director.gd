@@ -66,6 +66,9 @@ var friends_fn: Callable = Callable()
 ## dot-physics' [code]DotPhysicsQuery.line_of_sight_3d[/code] is exactly this shape.
 var can_see_fn: Callable = Callable()
 
+## `func(count: int, clearance: float, map_id: String) -> Array`. Sites over the game's navigation (an even spread with clearance) for [method ensure_generated]; the result is cached per map id and version.
+var generate_fn: Callable = Callable()
+
 ## Protection, if the rules ask for any. Created on demand.
 var protection: DotSpawnProtection = null
 
@@ -74,6 +77,8 @@ var _round_robin: int = 0
 var _respawn_at: Dictionary = {}
 var _next_wave_tick: int = -1
 var _last_choice: DotSpawnChoice = null
+var _batch_picks: Array[Vector3] = []
+var _generated: Dictionary = {}
 
 
 func _ready() -> void:
@@ -235,7 +240,7 @@ func choose_from(from: Array[DotSpawnSite], request: DotSpawnRequest) -> DotResu
 		})
 
 	var rng := _rng(request)
-	var picked := _pick(pool, context, rng)
+	var picked := _pick_by_strategy(pool, context, rng)
 
 	if picked == null:
 		return DotResult.fail(DotError.CODE_INTERNAL, "The selector chose nothing.")
@@ -264,6 +269,67 @@ func choose_from(from: Array[DotSpawnSite], request: DotSpawnRequest) -> DotResu
 
 	chosen.emit(request.key, choice)
 	return DotResult.success(choice)
+
+
+## Picks for several requests that spawn together, each away from the earlier picks.
+##
+## Only the `spread` strategy reads the earlier picks; under any other the result is the same as calling [method choose] in turn. Returns an array of [DotSpawnChoice], or the first failure.
+func choose_batch(requests: Array[DotSpawnRequest]) -> DotResult:
+	var choices: Array[DotSpawnChoice] = []
+	_batch_picks.clear()
+
+	for request in requests:
+		var res := choose(request)
+
+		if not res.ok:
+			_batch_picks.clear()
+			return res
+
+		var choice: DotSpawnChoice = res.value
+		choices.append(choice)
+		_batch_picks.append(choice.transform.origin)
+
+	_batch_picks.clear()
+	return DotResult.success(choices)
+
+
+## Adds the game's generated sites for a map, per the rules' `generate` setting. Returns how many were added.
+##
+## Cached per map id and version, so a reload does not ask the game to generate again; call it after [method refresh], which drops them with the other sites.
+func ensure_generated(map_id: String, map_version: int = 0) -> int:
+	if rules == null:
+		rules = DotSpawnRules.new()
+
+	if rules.generate == "off" or not generate_fn.is_valid():
+		return 0
+
+	var map_sites := 0
+	for i in range(_sites.size() - 1, -1, -1):
+		if _sites[i].source == &"generated":
+			_sites.remove_at(i)
+		else:
+			map_sites += 1
+
+	if rules.generate == "when_few" and map_sites >= rules.generate_count:
+		return 0
+
+	var key := "%s@%d" % [map_id, map_version]
+
+	if not _generated.has(key):
+		var made: Variant = generate_fn.call(rules.generate_count, rules.generate_clearance, map_id)
+		var kept: Array[DotSpawnSite] = []
+
+		if made is Array:
+			for item: Variant in made:
+				if item is DotSpawnSite:
+					(item as DotSpawnSite).source = &"generated"
+					kept.append(item as DotSpawnSite)
+
+		_generated[key] = kept
+
+	var cached: Array[DotSpawnSite] = _generated[key]
+	_sites.append_array(cached)
+	return cached.size()
 
 
 ## The score a site gets, exposed so a game can explain a choice to a player.
@@ -446,6 +512,98 @@ func _rng(request: DotSpawnRequest) -> RandomNumberGenerator:
 	# before it, which is the same reason this function exists at all.
 	rng.seed = stream.at(request.tick)
 	return rng
+
+
+## Walks the rules' strategies in order; the first that yields a site wins.
+func _pick_by_strategy(
+	pool: Array[DotSpawnSite],
+	context: Dictionary,
+	rng: RandomNumberGenerator
+) -> DotSpawnSite:
+	var names := rules.strategies()
+
+	if names.is_empty():
+		names.append("map")
+
+	for name in names:
+		var picked: DotSpawnSite = null
+
+		match name:
+			"spread":
+				picked = _pick_spread(pool, context, rng)
+			"near_team":
+				picked = _pick_mode(_without_generated(pool), DotSpawnRules.Mode.NEAREST_FRIEND, context, rng)
+			"far_from_enemies":
+				picked = _pick_mode(_without_generated(pool), DotSpawnRules.Mode.FURTHEST, context, rng)
+			_:
+				picked = _pick(_without_generated(pool), context, rng)
+
+		if picked != null:
+			return picked
+
+	return null
+
+
+func _without_generated(pool: Array[DotSpawnSite]) -> Array[DotSpawnSite]:
+	var out: Array[DotSpawnSite] = []
+
+	for site in pool:
+		if site.source != &"generated":
+			out.append(site)
+
+	return out
+
+
+func _pick_mode(
+	pool: Array[DotSpawnSite],
+	mode: int,
+	context: Dictionary,
+	rng: RandomNumberGenerator
+) -> DotSpawnSite:
+	var kept := rules.mode
+	rules.mode = mode
+	var picked := _pick(pool, context, rng)
+	rules.mode = kept
+	return picked
+
+
+## Farthest-point pick: the site whose nearest earlier pick or living team-mate is farthest.
+##
+## The floor is [member DotSpawnRules.spread_distance]; when even the best site is nearer, it halves down to [member DotSpawnRules.spread_min] and is only logged, because the farthest site is still the best answer. Ties go to priority, then id.
+func _pick_spread(pool: Array[DotSpawnSite], context: Dictionary, rng: RandomNumberGenerator) -> DotSpawnSite:
+	if pool.is_empty():
+		return null
+
+	var avoid: Array = _batch_picks.duplicate()
+	avoid.append_array(context.get("friends", []))
+
+	# Nothing to keep away from yet: the first pick of a batch is the mode's, so it varies.
+	if avoid.is_empty():
+		return _pick(pool, context, rng)
+
+	var best: DotSpawnSite = null
+	var best_d := -INF
+
+	for site in pool:
+		var d := _nearest_distance(site, avoid)
+
+		if best == null or d > best_d + 0.0001:
+			best = site
+			best_d = d
+		elif absf(d - best_d) <= 0.0001:
+			if site.priority > best.priority or (site.priority == best.priority and String(site.id) < String(best.id)):
+				best = site
+				best_d = maxf(best_d, d)
+
+	var floor_d := rules.spread_distance
+
+	while best_d < floor_d and floor_d > rules.spread_min:
+		floor_d = maxf(rules.spread_min, floor_d * 0.5)
+
+	if best_d < floor_d:
+		DotLog.debug(CHANNEL, "spread below its floor", {"nearest": best_d, "floor": floor_d})
+
+	return best
 
 
 func _pick(
