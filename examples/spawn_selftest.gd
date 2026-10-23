@@ -12,7 +12,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 13
-const CHECKS := 234
+const CHECKS := 242
 
 const RATE := 64
 
@@ -1262,6 +1262,45 @@ func _test_strategies() -> void:
 	rules.generate = "when_few"
 	rules.generate_count = 10
 	_check(d.ensure_generated("m", 1) == 0 and d.sites().size() == 20, "when_few generates nothing for a map with enough sites")
+
+	rules.generate = "always"
+	rules.generate_count = 4
+	_check(d.ensure_generated("m", 1) == 4 and calls[0] == 2, "a changed generate_count is a new site set, not the cached one (%d calls)" % calls[0])
+	rules.generate_clearance += 1.0
+	d.ensure_generated("m", 1)
+	_check(calls[0] == 3, "a changed generate_clearance regenerates (%d calls)" % calls[0])
+
+	var gr := DotSpawnRules.new()
+	gr.strategy = "grouped"
+	gr.group_radius = 15.0
+	var gd := _director(gr)
+	for site in _grid(20):
+		gd.add_site(site)
+	var all_ok := true
+	for i in range(12):
+		all_ok = all_ok and gd.choose(DotSpawnRequest.make("p%d" % i, &"red", &"", 7)).ok
+	_check(all_ok, "grouped: per-player choose keeps answering past the anchor's free sites (it re-anchors)")
+	_check((gd._group_taken[&"red"] as Array).size() <= 3 if gd._group_taken.has(&"red") else true, "grouped: taken ids expire instead of growing for ever")
+	gd.choose(DotSpawnRequest.make("q", &"red", &"", 8))
+	_check(not gd._group_anchors.is_empty(), "grouped: a per-player choose anchors a group")
+	gd.reset_groups()
+	_check(gd._group_anchors.is_empty() and gd._group_taken.is_empty(), "grouped: reset_groups forgets anchors and taken ids")
+	gd.choose(DotSpawnRequest.make("q2", &"red", &"", 9))
+	gd.refresh(false)
+	_check(gd._group_anchors.is_empty(), "grouped: refresh forgets the anchors")
+
+	var sr := DotSpawnRules.new()
+	sr.strategy = "spread"
+	sr.spread_distance = 1000.0
+	sr.spread_min = 0.0
+	var sd := _director(sr)
+	sd.add_site(DotSpawnSite.point(&"only", Vector3.ZERO))
+	var sreqs: Array[DotSpawnRequest] = []
+	sreqs.append(DotSpawnRequest.make("a", &"", &"", 1))
+	sreqs.append(DotSpawnRequest.make("b", &"", &"", 1))
+	var t0 := Time.get_ticks_usec()
+	var sb := sd.choose_batch(sreqs)
+	_check(sb.ok and Time.get_ticks_usec() - t0 < 200000, "spread: min 0 with every pick on one site answers without looping")
 
 
 # --- Harness ---------------------------------------------------------------

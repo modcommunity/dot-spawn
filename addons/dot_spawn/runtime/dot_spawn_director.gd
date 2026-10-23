@@ -82,6 +82,8 @@ var _batch_picks: Array[Vector3] = []
 var _group_anchors: Dictionary = {}
 var _group_taken: Dictionary = {}
 var _current_group: String = ""
+var _in_batch: bool = false
+var _generated_map: String = ""
 var _generated: Dictionary = {}
 
 
@@ -104,6 +106,8 @@ func _ready() -> void:
 ## builds its sites in code adds them on the lines after this one, and a warning on the
 ## way past is a false alarm for a condition corrected microseconds later.
 func refresh(announce_empty: bool = true) -> void:
+	# New sites make old anchors and taken ids meaningless.
+	reset_groups()
 	var kept: Dictionary = {}
 
 	# Cooldown history survives a refresh. A site collected fresh every round that
@@ -178,6 +182,12 @@ func clear_sites() -> void:
 
 
 # --- Choosing ---------------------------------------------------------------
+
+## Forgets the `grouped` strategy's anchors and taken sites; call it at a round or map boundary. [method refresh] and a map change in [method ensure_generated] do it too.
+func reset_groups() -> void:
+	_group_anchors.clear()
+	_group_taken.clear()
+
 
 ## Picks a site for a request out of the collected ones.
 func choose(request: DotSpawnRequest) -> DotResult:
@@ -282,16 +292,16 @@ func choose_from(from: Array[DotSpawnSite], request: DotSpawnRequest) -> DotResu
 func choose_batch(requests: Array[DotSpawnRequest]) -> DotResult:
 	var choices: Array[DotSpawnChoice] = []
 	_batch_picks.clear()
-	_group_anchors.clear()
-	_group_taken.clear()
+	reset_groups()
+	_in_batch = true
 
 	for request in requests:
 		var res := choose(request)
 
 		if not res.ok:
 			_batch_picks.clear()
-			_group_anchors.clear()
-			_group_taken.clear()
+			reset_groups()
+			_in_batch = false
 			return res
 
 		var choice: DotSpawnChoice = res.value
@@ -299,8 +309,8 @@ func choose_batch(requests: Array[DotSpawnRequest]) -> DotResult:
 		_batch_picks.append(choice.transform.origin)
 
 	_batch_picks.clear()
-	_group_anchors.clear()
-	_group_taken.clear()
+	reset_groups()
+	_in_batch = false
 	return DotResult.success(choices)
 
 
@@ -324,7 +334,12 @@ func ensure_generated(map_id: String, map_version: int = 0) -> int:
 	if rules.generate == "when_few" and map_sites >= rules.generate_count:
 		return 0
 
-	var key := "%s@%d" % [map_id, map_version]
+	# A map change invalidates group anchors; the key carries what the generator was asked for.
+	if map_id != _generated_map:
+		_generated_map = map_id
+		reset_groups()
+
+	var key := "%s@%d@%d@%s" % [map_id, map_version, rules.generate_count, str(rules.generate_clearance)]
 
 	if not _generated.has(key):
 		var made: Variant = generate_fn.call(rules.generate_count, rules.generate_clearance, map_id)
@@ -610,7 +625,8 @@ func _pick_spread(pool: Array[DotSpawnSite], context: Dictionary, rng: RandomNum
 
 	var floor_d := rules.spread_distance
 
-	while best_d < floor_d and floor_d > rules.spread_min:
+	# The epsilon stops a zero floor halving ~1000 times to nothing.
+	while best_d < floor_d and floor_d > rules.spread_min and floor_d > 0.001:
 		floor_d = maxf(rules.spread_min, floor_d * 0.5)
 
 	if best_d < floor_d:
@@ -660,6 +676,12 @@ func _pick_grouped(pool: Array[DotSpawnSite], context: Dictionary, rng: RandomNu
 		if not taken.has(site.id) and (d < nearest_d - 0.0001 or (absf(d - nearest_d) <= 0.0001 and nearest != null and String(site.id) < String(nearest.id))):
 			nearest = site
 			nearest_d = d
+
+	# Outside a batch nothing ends the group, so a team whose anchor area is used up re-anchors instead of reaching ever farther.
+	if inside.is_empty() and not _in_batch:
+		_group_anchors.erase(_current_group)
+		_group_taken.erase(_current_group)
+		return _pick_grouped(pool, context, rng)
 
 	var picked: DotSpawnSite = null
 
