@@ -78,6 +78,10 @@ var _respawn_at: Dictionary = {}
 var _next_wave_tick: int = -1
 var _last_choice: DotSpawnChoice = null
 var _batch_picks: Array[Vector3] = []
+## Per group: the anchor position and the site ids already taken, for the `grouped` strategy.
+var _group_anchors: Dictionary = {}
+var _group_taken: Dictionary = {}
+var _current_group: String = ""
 var _generated: Dictionary = {}
 
 
@@ -239,6 +243,7 @@ func choose_from(from: Array[DotSpawnSite], request: DotSpawnRequest) -> DotResu
 			"key": request.key, "why": why, "sites": from.size()
 		})
 
+	_current_group = String(request.extra.get("group", request.team))
 	var rng := _rng(request)
 	var picked := _pick_by_strategy(pool, context, rng)
 
@@ -273,16 +278,20 @@ func choose_from(from: Array[DotSpawnSite], request: DotSpawnRequest) -> DotResu
 
 ## Picks for several requests that spawn together, each away from the earlier picks.
 ##
-## Only the `spread` strategy reads the earlier picks; under any other the result is the same as calling [method choose] in turn. Returns an array of [DotSpawnChoice], or the first failure.
+## Only the `spread` and `grouped` strategies read the earlier picks (`grouped` keys on `extra["group"]`, else the team); under any other the result is the same as calling [method choose] in turn. Returns an array of [DotSpawnChoice], or the first failure.
 func choose_batch(requests: Array[DotSpawnRequest]) -> DotResult:
 	var choices: Array[DotSpawnChoice] = []
 	_batch_picks.clear()
+	_group_anchors.clear()
+	_group_taken.clear()
 
 	for request in requests:
 		var res := choose(request)
 
 		if not res.ok:
 			_batch_picks.clear()
+			_group_anchors.clear()
+			_group_taken.clear()
 			return res
 
 		var choice: DotSpawnChoice = res.value
@@ -290,6 +299,8 @@ func choose_batch(requests: Array[DotSpawnRequest]) -> DotResult:
 		_batch_picks.append(choice.transform.origin)
 
 	_batch_picks.clear()
+	_group_anchors.clear()
+	_group_taken.clear()
 	return DotResult.success(choices)
 
 
@@ -531,6 +542,8 @@ func _pick_by_strategy(
 		match name:
 			"spread":
 				picked = _pick_spread(pool, context, rng)
+			"grouped":
+				picked = _pick_grouped(pool, context, rng)
 			"near_team":
 				picked = _pick_mode(_without_generated(pool), DotSpawnRules.Mode.NEAREST_FRIEND, context, rng)
 			"far_from_enemies":
@@ -570,11 +583,11 @@ func _pick_mode(
 ## Farthest-point pick: the site whose nearest earlier pick or living team-mate is farthest.
 ##
 ## The floor is [member DotSpawnRules.spread_distance]; when even the best site is nearer, it halves down to [member DotSpawnRules.spread_min] and is only logged, because the farthest site is still the best answer. Ties go to priority, then id.
-func _pick_spread(pool: Array[DotSpawnSite], context: Dictionary, rng: RandomNumberGenerator) -> DotSpawnSite:
+func _pick_spread(pool: Array[DotSpawnSite], context: Dictionary, rng: RandomNumberGenerator, picks: Array = _batch_picks) -> DotSpawnSite:
 	if pool.is_empty():
 		return null
 
-	var avoid: Array = _batch_picks.duplicate()
+	var avoid: Array = picks.duplicate()
 	avoid.append_array(context.get("friends", []))
 
 	# Nothing to keep away from yet: the first pick of a batch is the mode's, so it varies.
@@ -603,7 +616,65 @@ func _pick_spread(pool: Array[DotSpawnSite], context: Dictionary, rng: RandomNum
 	if best_d < floor_d:
 		DotLog.debug(CHANNEL, "spread below its floor", {"nearest": best_d, "floor": floor_d})
 
-	return best
+	if not rules.spread_floor_steers:
+		return best
+
+	# Sites meeting the floor, then the mode chooses among them so a batch still varies; the farthest is only the last resort.
+	var meeting: Array[DotSpawnSite] = []
+
+	for site in pool:
+		if _nearest_distance(site, avoid) >= floor_d:
+			meeting.append(site)
+
+	if meeting.is_empty():
+		return best
+
+	return _pick(meeting, context, rng)
+
+
+## The first request of a group anchors it (anchors spread from each other); the rest take sites within `group_radius` of the anchor, unused ones first, so a team arrives together.
+func _pick_grouped(pool: Array[DotSpawnSite], context: Dictionary, rng: RandomNumberGenerator) -> DotSpawnSite:
+	if pool.is_empty():
+		return null
+
+	if not _group_anchors.has(_current_group):
+		var anchors: Array = _group_anchors.values()
+		var anchor := _pick_spread(pool, context, rng, anchors)
+		if anchor != null:
+			_group_anchors[_current_group] = anchor.position
+			_group_taken[_current_group] = [anchor.id]
+		return anchor
+
+	var center: Vector3 = _group_anchors[_current_group]
+	var taken: Array = _group_taken[_current_group]
+	var inside: Array[DotSpawnSite] = []
+	var nearest: DotSpawnSite = null
+	var nearest_d := INF
+
+	for site in pool:
+		var d := site.position.distance_to(center)
+
+		if d <= rules.group_radius and not taken.has(site.id):
+			inside.append(site)
+
+		if not taken.has(site.id) and (d < nearest_d - 0.0001 or (absf(d - nearest_d) <= 0.0001 and nearest != null and String(site.id) < String(nearest.id))):
+			nearest = site
+			nearest_d = d
+
+	var picked: DotSpawnSite = null
+
+	if not inside.is_empty():
+		picked = inside[rng.randi_range(0, inside.size() - 1)]
+	elif nearest != null:
+		DotLog.debug(CHANNEL, "group radius holds no free site", {"group": _current_group, "radius": rules.group_radius})
+		picked = nearest
+	else:
+		picked = _pick(pool, context, rng)
+
+	if picked != null:
+		taken.append(picked.id)
+
+	return picked
 
 
 func _pick(

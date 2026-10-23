@@ -57,7 +57,7 @@ var mode: int = 0
 
 ## Ordered, comma-separated strategies; the first that yields a site wins.
 ##
-## `map` picks by [member mode] among the level's own sites (the behaviour before strategies existed), `spread` sends a batch to different parts of the pool, `near_team` and `far_from_enemies` are the NEAREST_FRIEND and FURTHEST modes by name.
+## `map` picks by [member mode] among the level's own sites (the behaviour before strategies existed), `spread` sends a batch to different parts of the pool, `grouped` spawns a team (or `extra["group"]`) near one anchor within [member group_radius], `near_team` and `far_from_enemies` are the NEAREST_FRIEND and FURTHEST modes by name.
 @export var strategy: String = "map"
 
 ## The distance spread tries to keep between picks and living team-mates, in metres.
@@ -65,6 +65,12 @@ var mode: int = 0
 
 ## The floor spread halves its distance down to before it takes the farthest site there is.
 @export_range(0.0, 1000.0, 0.5) var spread_min: float = 4.0
+
+## Whether spread prefers sites that meet the floor (the mode picks among them) instead of always taking the farthest. Off keeps the earlier behaviour: farthest, floor only logged.
+@export var spread_floor_steers: bool = false
+
+## How far from its anchor a `grouped` team member may spawn, in metres.
+@export_range(0.5, 1000.0, 0.5) var group_radius: float = 8.0
 
 ## Whether the game's generate_fn adds sites: `off`, `when_few` (fewer sites than [member generate_count]) or `always`.
 @export_enum("off", "when_few", "always") var generate: String = "off"
@@ -152,7 +158,7 @@ func strategies() -> PackedStringArray:
 	return out
 
 
-const STRATEGIES := ["map", "spread", "near_team", "far_from_enemies"]
+const STRATEGIES := ["map", "spread", "grouped", "near_team", "far_from_enemies"]
 
 
 func validate() -> DotResult:

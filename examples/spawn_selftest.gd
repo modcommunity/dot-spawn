@@ -12,7 +12,7 @@ extends Node
 ## [/codeblock]
 
 const SECTIONS := 13
-const CHECKS := 224
+const CHECKS := 234
 
 const RATE := 64
 
@@ -1167,6 +1167,81 @@ func _test_strategies() -> void:
 	rules.strategy = "map"
 	var plain := d.choose_batch(requests)
 	_check(plain.ok and (plain.value as Array).size() == 8, "the map strategy still answers a batch")
+
+	rules.generate = "off"
+	rules.strategy = "grouped"
+	rules.group_radius = 12.0
+	var greqs: Array[DotSpawnRequest] = []
+	for i in range(3):
+		greqs.append(DotSpawnRequest.make("a%d" % i, &"red", &"", 200))
+		greqs.append(DotSpawnRequest.make("b%d" % i, &"blue", &"", 200))
+	var gres := d.choose_batch(greqs)
+	_check(gres.ok and (gres.value as Array).size() == 6, "grouped: a batch of 6 (two teams of 3) on 20 sites is answered")
+	var near_ok := true
+	var ids := {}
+	for team_ix in range(2):
+		var anchor: Vector3 = (gres.value[team_ix] as DotSpawnChoice).transform.origin
+		for k in range(3):
+			var c: DotSpawnChoice = gres.value[team_ix + k * 2]
+			ids[c.site.id] = true
+			near_ok = near_ok and c.transform.origin.distance_to(anchor) <= rules.group_radius + 0.01
+	_check(near_ok, "grouped: every member is within the radius of its team's anchor")
+	_check(ids.size() == 6, "grouped: the six picks are six different sites")
+	var ga: Vector3 = (gres.value[0] as DotSpawnChoice).transform.origin
+	var gb: Vector3 = (gres.value[1] as DotSpawnChoice).transform.origin
+	_check(ga.distance_to(gb) >= rules.spread_min, "grouped: the two anchors are apart")
+	var gagain := d.choose_batch(greqs)
+	var gsame := gagain.ok
+	for i in range(6):
+		gsame = gsame and (gagain.value[i] as DotSpawnChoice).site.id == (gres.value[i] as DotSpawnChoice).site.id
+	_check(gsame, "grouped: the same batch on the same tick is the same answer")
+	rules.group_radius = 1.0
+	var tight := d.choose_batch(greqs)
+	_check(tight.ok and (tight.value as Array).size() == 6, "grouped: a radius with no free site still answers (nearest unused)")
+	_check(d.choose(DotSpawnRequest.make("solo", &"red", &"", 5)).ok, "grouped: a single choose outside a batch works")
+
+	rules.strategy = "spread"
+	rules.spread_distance = 20.0
+	rules.spread_min = 20.0
+	var fd := _director(rules)
+	fd.add_site(DotSpawnSite.point(&"home", Vector3.ZERO))
+	fd.add_site(DotSpawnSite.point(&"near", Vector3(5, 0, 0)))
+	fd.add_site(DotSpawnSite.point(&"mid", Vector3(25, 0, 0)))
+	fd.add_site(DotSpawnSite.point(&"far", Vector3(60, 0, 0)))
+	var freqs: Array[DotSpawnRequest] = []
+	freqs.append(DotSpawnRequest.make("f0", &"", &"", 300))
+	freqs.append(DotSpawnRequest.make("f1", &"", &"", 300))
+	var plain_farthest := true
+	var site_pos := {&"home": Vector3.ZERO, &"near": Vector3(5, 0, 0), &"mid": Vector3(25, 0, 0), &"far": Vector3(60, 0, 0)}
+	for t in range(40):
+		freqs[1].tick = 300 + t
+		freqs[0].tick = 300 + t
+		var fr := fd.choose_batch(freqs)
+		var q0: Vector3 = (fr.value[0] as DotSpawnChoice).transform.origin
+		var q1: Vector3 = (fr.value[1] as DotSpawnChoice).transform.origin
+		for pos in site_pos.values():
+			plain_farthest = plain_farthest and q0.distance_to(pos) <= q0.distance_to(q1) + 0.01
+	_check(plain_farthest, "floor off: spread always takes the farthest site from the first pick")
+	rules.spread_floor_steers = true
+	var meets := true
+	for t in range(40):
+		freqs[1].tick = 300 + t
+		freqs[0].tick = 300 + t
+		var fr2 := fd.choose_batch(freqs)
+		var p0: Vector3 = (fr2.value[0] as DotSpawnChoice).transform.origin
+		var p1: Vector3 = (fr2.value[1] as DotSpawnChoice).transform.origin
+		meets = meets and p0.distance_to(p1) >= 20.0
+	_check(meets, "floor on: every second pick meets the floor when a site does")
+	rules.spread_distance = 500.0
+	rules.spread_min = 500.0
+	var fb := fd.choose_batch(freqs)
+	_check(fb.ok and (fb.value[1] as DotSpawnChoice).site.id != (fb.value[0] as DotSpawnChoice).site.id, "floor on, none meets it: falls back to the farthest site")
+
+	rules = d.rules
+	rules.strategy = "map"
+	rules.spread_floor_steers = false
+	rules.spread_distance = 10.0
+	rules.spread_min = 5.0
 
 	var calls := [0]
 	d.generate_fn = func(count: int, _clearance: float, _map: String) -> Array:
