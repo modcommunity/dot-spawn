@@ -6,6 +6,8 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first.
 
 **The distributable is `addons/dot_spawn/`.** It requires [dot-core](../dot-core) and nothing else (`ln -s ../../dot-core/addons/dot_core addons/dot_core`, gitignored).
 
+Also requires **dot-profile** (`DotProfileSet`, `DotProfile`, `DotProfileRuntime`, split from dot-core): link `addons/dot_profile` next to `addons/dot_core`.
+
 ## Read before
 
 | Read | Before |
