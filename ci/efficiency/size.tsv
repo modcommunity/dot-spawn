@@ -1,8 +1,4 @@
 # size
 # Baselines only shrink: scripts/<gate> --update lowers or drops entries and refuses to add.
-addons/dot_spawn/runtime/dot_spawn_director.gd::choose_from	86
-examples/spawn_selftest.gd	952
-examples/spawn_selftest.gd::_test_areas	104
-examples/spawn_selftest.gd::_test_conditions	145
-examples/spawn_selftest.gd::_test_protection	83
+examples/spawn_selftest.gd::_test_conditions	142
 examples/spawn_selftest.gd::_test_selection	123

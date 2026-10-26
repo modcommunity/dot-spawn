@@ -196,10 +196,7 @@ func choose(request: DotSpawnRequest) -> DotResult:
 
 ## The same decision, over an array the caller supplies. The testable half.
 ##
-## Returns a failure only when there is genuinely nothing — no sites at all, or every
-## site rejected with the fallback switched off. A bad-but-used site is a success with
-## [member DotSpawnChoice.fell_back] set, because a caller that treats "we had to
-## compromise" as an error will leave a player unspawned over it.
+## Fails only when there is nothing: no sites, or all rejected with the fallback off. A bad-but-used site is a success with [member DotSpawnChoice.fell_back] set, so nobody is left unspawned.
 func choose_from(from: Array[DotSpawnSite], request: DotSpawnRequest) -> DotResult:
 	if rules == null:
 		rules = DotSpawnRules.new()
@@ -246,8 +243,7 @@ func choose_from(from: Array[DotSpawnSite], request: DotSpawnRequest) -> DotResu
 				"%d sites considered." % from.size()
 			)
 
-		# The fallback, and the reason it is not optional: a round where nobody spawns
-		# looks exactly like a crash from the inside of a black screen.
+		# Not optional: a round where nobody spawns looks like a crash.
 		pool = rejected
 		DotLog.warn(CHANNEL, "spawning against the rules", {
 			"key": request.key, "why": why, "sites": from.size()
@@ -268,8 +264,12 @@ func choose_from(from: Array[DotSpawnSite], request: DotSpawnRequest) -> DotResu
 	choice.reason = why if choice.fell_back else ""
 	choice.considered = from.size()
 	choice.allowed = allowed.size()
+	_commit_choice(choice, request, why)
+	return DotResult.success(choice)
 
-	picked.last_used_tick = request.tick
+
+func _commit_choice(choice: DotSpawnChoice, request: DotSpawnRequest, why: String) -> void:
+	choice.site.last_used_tick = request.tick
 	_last_choice = choice
 
 	if choice.fell_back:
@@ -279,11 +279,10 @@ func choose_from(from: Array[DotSpawnSite], request: DotSpawnRequest) -> DotResu
 		if protection == null:
 			protection = DotSpawnProtection.new(rules)
 		choice.protected_until = protection.grant(
-			request.key, request.tick, tick_rate, picked.id
+			request.key, request.tick, tick_rate, choice.site.id
 		)
 
 	chosen.emit(request.key, choice)
-	return DotResult.success(choice)
 
 
 ## Picks for several requests that spawn together, each away from the earlier picks.
@@ -510,23 +509,9 @@ func _context(request: DotSpawnRequest) -> Dictionary:
 	}
 
 
-## One generator per request, derived from the seed, the tick and the key.
+## One generator per request, from the seed, the tick and the key.
 ##
-## [b]Never a shared member.[/b] A single stream makes a spawn depend on how many other
-## spawns happened first, so a server that processed two deaths this tick and a client
-## that saw one get different points — and the player materialises in two places.
-##
-## [b]The seed is mixed by [DotRandomStream], not by hand.[/b] This used to fold the key
-## in with [code]hash(request.key)[/code], and Godot's [method String.hash] is 32-bit and
-## is not promised to be stable across engine versions — so the same seed, the same tick
-## and the same key could pick a different spawn point after an engine upgrade, on a
-## machine that upgraded before the one it is playing against. [method
-## DotRandomStream.stream] hashes the name with FNV-1a over its bytes, which is the same
-## number for ever.
-##
-## Still returns a [RandomNumberGenerator]: the samplers a host supplies are declared as
-## [code]func(rng: RandomNumberGenerator)[/code] and that is a published extension point.
-## What changed is where the seed comes from, not what a caller is handed.
+## Never a shared member: one stream makes a spawn depend on how many came first, so server and client diverge. Seeded by [DotRandomStream] (FNV-1a), not [method String.hash], which is not stable across engine versions.
 func _rng(request: DotSpawnRequest) -> RandomNumberGenerator:
 	var stream := DotRandomStream.new(rules.seed_value, &"spawn")
 
@@ -534,8 +519,7 @@ func _rng(request: DotSpawnRequest) -> RandomNumberGenerator:
 		stream = stream.stream(StringName(request.key))
 
 	var rng := RandomNumberGenerator.new()
-	# `at` rather than `next`: the draw must not depend on how many spawns came
-	# before it, which is the same reason this function exists at all.
+	# `at`, not `next`: the draw must not depend on how many spawns came before it.
 	rng.seed = stream.at(request.tick)
 	return rng
 
@@ -739,9 +723,7 @@ func _pick(
 
 ## Highest scorer, with ties broken by priority and then by id.
 ##
-## Deterministic ties matter: two sites that score identically must resolve the same way
-## on every machine, and array order out of a scene tree walk is not something to rely
-## on across a client and a server that loaded the level differently.
+## Deterministic ties: scene-tree order differs between a client and a server that loaded the level differently.
 func _best(pool: Array[DotSpawnSite], scorer: Callable) -> DotSpawnSite:
 	var best: DotSpawnSite = null
 	var best_score := -INF
@@ -802,9 +784,7 @@ func _score(site: DotSpawnSite, context: Dictionary) -> float:
 
 ## Distance to the nearest of a set of points, or INF when the set is empty.
 ##
-## INF rather than zero, and every caller checks: an empty enemy list means "no
-## information", and scoring it as "an enemy is standing here" would make every site
-## equally terrible in the one case where the selector has a free choice.
+## INF, not zero: an empty list means "no information", and zero would make every site equally terrible.
 func _nearest_distance(site: DotSpawnSite, points: Array) -> float:
 	var nearest := INF
 
