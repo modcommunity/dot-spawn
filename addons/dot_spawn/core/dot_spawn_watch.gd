@@ -3,7 +3,6 @@ extends RefCounted
 
 ## Finds movers that are stuck, off the navigation, fallen out, cut off or lost; decides nothing.
 
-const CHANNEL := "spawn"
 const SPOTS_KEPT := 64
 
 var rules: DotSpawnCullRules = DotSpawnCullRules.new()
