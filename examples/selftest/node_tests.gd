@@ -144,6 +144,17 @@ func _test_areas() -> void:
 		+ "unconditionally"
 	)
 
+	_areas_sampling(area)
+	var flat := _areas_flat()
+	_areas_describe(area)
+
+	# Freed rather than queued: the suite quits on the next line and a deferred free
+	# never runs, which shows up as "RID allocations were leaked at exit".
+	area.free()
+	flat.free()
+
+
+func _areas_sampling(area: DotSpawnArea3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var placed := area.sample(rng)
@@ -160,6 +171,8 @@ func _test_areas() -> void:
 		+ "ring, a grid or a navmesh snap needs"
 	)
 
+
+func _areas_flat() -> DotSpawnArea2D:
 	var flat := DotSpawnArea2D.new()
 	flat.site_id = &"lobby"
 	flat.fallback_extents = Vector2(32, 32)
@@ -170,7 +183,10 @@ func _test_areas() -> void:
 	_check(flat.occupant_keys().size() == 1, "which tracks occupants the same way")
 	flat.clear_occupants()
 	_check(flat.occupant_count() == 0, "and clears them")
+	return flat
 
+
+func _areas_describe(area: DotSpawnArea3D) -> void:
 	_check(area.describe_lines().size() >= 1, "an area describes itself")
 	var unshaped := DotSpawnArea3D.new()
 	_check(
@@ -178,9 +194,3 @@ func _test_areas() -> void:
 		"and warns in the editor when it has no box to measure"
 	)
 	unshaped.free()
-
-	# Freed rather than queued: the suite quits on the next line and a deferred free
-	# never runs, which shows up as "RID allocations were leaked at exit" in a stderr
-	# this family's own rules say to read.
-	area.free()
-	flat.free()
