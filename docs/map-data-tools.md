@@ -46,6 +46,7 @@ Each game adds `examples/bot_soak.tscn` (its `./game.sh test` suite, one short m
 A strategy is the policy over the pool; `DotSpawnRules.strategy` names an ordered list, and the first that yields a site wins, with the existing fallback (loud, three ways) after the last.
 
 - `map`: only `source = map` sites, chosen by the existing modes. Everyone in the start room, as today.
+- `scatter`: the free-for-all strategy (the `deathmatch` preset uses `scatter,map`). One random draw over every enabled site by `DotSpawnSite.weight`, ignoring priority, damped near the last `scatter_recent` picks (`scatter_radius`) and near living enemies (`scatter_enemy_radius`); a site an enemy can see is rejected by sampling (`scatter_seen_factor`), so the cost is a few rays. No cap on players or sites.
 - `spread`: players spawning together go to different parts of the map. Picks are made as a batch (`choose_batch`), each the site farthest from every pick so far and from living team-mates, with `spread_distance` as the floor; the floor halves (to `spread_min`) before the strategy gives up. By default the floor is only logged and the farthest site wins; `spread_floor_steers` makes the pick prefer sites meeting the floor (the mode chooses among them) and fall back to the farthest, logged. Enemy distance and sight conditions still veto.
 - `grouped`: built. A team (or `extra["group"]` on the request) spawns together: the group's first request anchors it (anchors spread from each other), the rest take unused sites within `group_radius` of the anchor, else the nearest unused. Deterministic for the same seed and tick; read by `choose_batch`. `reset_groups()` forgets the anchors and taken sites; `refresh()` and a map change in `ensure_generated` call it, so a new round or map starts with no group.
 - `near_team`, `far_from_enemies`: the existing `NEAREST_FRIEND` and `FURTHEST` modes, named.
@@ -101,3 +102,7 @@ The client half is an overlay any admin can toggle: markers for every point (col
 - Should a shared bundle be uploadable to the site as content (listed, rated, installed in one click like a map), or is a file passed by hand enough for now?
 - Is a culled NPC killed (counts as a kill, drops loot) or despawned (no trace) by default in each game?
 - How long should the per-commit soak be: one short map in `./game.sh test`, with the long runs on the GPU boxes only?
+
+## Authored overrides and floor candidates
+
+`DotSpawnOverrides` is the `spawn` profile kind, one profile per map id: a `points` mapping of id to `{pos, yaw, team, enabled, weight, tags, removed}`. An id the map has is patched, another id is a new `authored` point. `DotSpawnDirector.load_overrides(set, map_id)` applies it after `refresh` and `ensure_generated`. Saving through `DotProfileRuntime` writes the server tier, which is the exportable diff; dot-workbench's spawn editor is the point-and-click front end. `DotSpawnFloorSampler.sample` makes `generated` candidates for a map with no spawn entities from a game-supplied ray function (farthest-point sampling over the bounds).

@@ -78,6 +78,7 @@ var _respawn_at: Dictionary = {}
 var _next_wave_tick: int = -1
 var _last_choice: DotSpawnChoice = null
 var _batch_picks: Array[Vector3] = []
+var _recent: Array[Vector3] = []
 ## Per group: the anchor position and the site ids already taken, for the `grouped` strategy.
 var _group_anchors: Dictionary = {}
 var _group_taken: Dictionary = {}
@@ -171,6 +172,27 @@ func remove_site(site_id: StringName) -> int:
 			removed += 1
 
 	return removed
+
+
+## Applies an admin's per-map edits (a `spawn` profile, see [DotSpawnOverrides]) to the collected sites. Value: how many entries took effect.
+##
+## Call it after [method refresh] and [method ensure_generated], since a refresh drops authored points with the rest.
+func load_overrides(profiles: DotProfileSet, map_id: String) -> DotResult:
+	if profiles == null or map_id.is_empty():
+		return DotResult.success(0)
+
+	if not profiles.has_id(map_id):
+		return DotResult.success(0)
+
+	var res := profiles.load_profile(map_id)
+
+	if not res.ok:
+		return res
+
+	var points: Variant = (res.value as DotProfile).get_value("points", {})
+	var n := DotSpawnOverrides.apply(_sites, points if points is Dictionary else {})
+	DotLog.debug(CHANNEL, "spawn overrides", {"map": map_id, "applied": n})
+	return DotResult.success(n)
 
 
 func sites() -> Array[DotSpawnSite]:
@@ -271,6 +293,7 @@ func choose_from(from: Array[DotSpawnSite], request: DotSpawnRequest) -> DotResu
 func _commit_choice(choice: DotSpawnChoice, request: DotSpawnRequest, why: String) -> void:
 	choice.site.last_used_tick = request.tick
 	_last_choice = choice
+	_remember_pick(choice.transform.origin)
 
 	if choice.fell_back:
 		fell_back.emit(request.key, why, request.tick)
@@ -539,6 +562,8 @@ func _pick_by_strategy(
 		var picked: DotSpawnSite = null
 
 		match name:
+			"scatter":
+				picked = _pick_scatter(pool, context, rng)
 			"spread":
 				picked = _pick_spread(pool, context, rng)
 			"grouped":
@@ -554,6 +579,110 @@ func _pick_by_strategy(
 			return picked
 
 	return null
+
+
+func _remember_pick(at: Vector3) -> void:
+	if rules == null or rules.scatter_recent <= 0:
+		return
+
+	_recent.append(at)
+
+	while _recent.size() > rules.scatter_recent:
+		_recent.remove_at(0)
+
+
+## Forgets the recent picks `scatter` keeps away from; call it at a map change.
+func reset_recent() -> void:
+	_recent.clear()
+
+
+## Random over every site by weight, damped near recent picks and living enemies.
+##
+## Priority is ignored on purpose: a "preferred" start is what put every bot in the default area. Sight is tested by rejection on the drawn site, so the cost is a few rays, not sites times enemies.
+func _pick_scatter(
+	pool: Array[DotSpawnSite],
+	context: Dictionary,
+	rng: RandomNumberGenerator
+) -> DotSpawnSite:
+	var enemies: Array = context.get("enemies", [])
+	var weights := PackedFloat64Array()
+	var total := 0.0
+
+	for site in pool:
+		var w := maxf(site.weight, 0.0)
+
+		if w > 0.0:
+			w *= _scatter_damping(site.position, enemies)
+
+		weights.append(w)
+		total += w
+
+	if total <= 0.0:
+		return null
+
+	var can_see: Variant = context.get("can_see", null)
+	var checks: bool = can_see is Callable and (can_see as Callable).is_valid() and not enemies.is_empty() and rules.scatter_seen_factor < 1.0
+	var drawn: DotSpawnSite = null
+
+	for attempt in 8:
+		var roll := rng.randf() * total
+		var idx := weights.size() - 1
+
+		for i in weights.size():
+			roll -= weights[i]
+
+			if roll <= 0.0 and weights[i] > 0.0:
+				idx = i
+				break
+
+		drawn = pool[idx]
+
+		if not checks or not _seen_by_any(drawn.position, enemies, can_see as Callable):
+			return drawn
+
+		if rng.randf() < rules.scatter_seen_factor:
+			return drawn
+
+	return drawn
+
+
+func _scatter_damping(at: Vector3, enemies: Array) -> float:
+	var f := 1.0
+
+	if rules.scatter_radius > 0.0:
+		var near := INF
+
+		for r in _recent:
+			near = minf(near, at.distance_to(r))
+
+		if near < rules.scatter_radius:
+			f *= 0.02 + 0.98 * (near / rules.scatter_radius)
+
+	if rules.scatter_enemy_radius > 0.0:
+		var e_near := _nearest_distance_to(at, enemies)
+
+		if e_near < rules.scatter_enemy_radius:
+			var t := e_near / rules.scatter_enemy_radius
+			f *= 0.01 + 0.99 * t * t
+
+	return f
+
+
+func _nearest_distance_to(at: Vector3, points: Array) -> float:
+	var nearest := INF
+
+	for p: Variant in points:
+		nearest = minf(nearest, at.distance_to(p as Vector3))
+
+	return nearest
+
+
+func _seen_by_any(at: Vector3, enemies: Array, can_see: Callable) -> bool:
+	for e: Variant in enemies:
+		if bool(can_see.call(e as Vector3, at)):
+			return true
+
+	return false
 
 
 func _without_generated(pool: Array[DotSpawnSite]) -> Array[DotSpawnSite]:

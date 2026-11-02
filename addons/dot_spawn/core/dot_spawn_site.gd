@@ -35,6 +35,12 @@ var priority: int = 0
 ## A site a mapper or a game has switched off. Collected, ignored, and still described.
 var enabled: bool = true
 
+## Relative chance among equals for the `scatter` strategy; 0 never picks it.
+var weight: float = 1.0
+
+## Free labels (an area, a lane) a game or an admin puts on a point.
+var tags: PackedStringArray = PackedStringArray()
+
 ## Half-extents of the volume to pick a point inside. Zero is a point, not a volume.
 ##
 ## [b]The difference between a point and an area is the difference between a spawn that
@@ -167,6 +173,9 @@ func duplicate_site() -> DotSpawnSite:
 	s.classes = classes.duplicate()
 	s.priority = priority
 	s.enabled = enabled
+	s.weight = weight
+	s.tags = tags.duplicate()
+	s.source = source
 	s.extents = extents
 	s.is_2d = is_2d
 	s.cooldown_ticks = cooldown_ticks

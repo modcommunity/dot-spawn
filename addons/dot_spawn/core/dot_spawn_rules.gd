@@ -57,7 +57,7 @@ var mode: int = 0
 
 ## Ordered, comma-separated strategies; the first that yields a site wins.
 ##
-## `map` picks by [member mode] among the level's own sites (the behaviour before strategies existed), `spread` sends a batch to different parts of the pool, `grouped` spawns a team (or `extra["group"]`) near one anchor within [member group_radius], `near_team` and `far_from_enemies` are the NEAREST_FRIEND and FURTHEST modes by name.
+## `map` picks by [member mode] among the level's own sites (the behaviour before strategies existed), `scatter` picks at random over every enabled site weighted away from recent picks and enemies (free-for-all), `spread` sends a batch to different parts of the pool, `grouped` spawns a team (or `extra["group"]`) near one anchor within [member group_radius], `near_team` and `far_from_enemies` are the NEAREST_FRIEND and FURTHEST modes by name.
 @export var strategy: String = "map"
 
 ## The distance spread tries to keep between picks and living team-mates, in metres.
@@ -71,6 +71,18 @@ var mode: int = 0
 
 ## How far from its anchor a `grouped` team member may spawn, in metres.
 @export_range(0.5, 1000.0, 0.5) var group_radius: float = 8.0
+
+## `scatter`: how many of the latest picks a new pick keeps away from.
+@export_range(0, 1000, 1) var scatter_recent: int = 12
+
+## `scatter`: sites nearer than this to a recent pick are weighted down, in metres.
+@export_range(0.0, 1000.0, 0.5) var scatter_radius: float = 25.0
+
+## `scatter`: sites nearer than this to a living enemy are weighted down hard, in metres.
+@export_range(0.0, 1000.0, 0.5) var scatter_enemy_radius: float = 15.0
+
+## `scatter`: the weight factor for a site an enemy can see (1 ignores sight).
+@export_range(0.0, 1.0, 0.01) var scatter_seen_factor: float = 0.05
 
 ## Whether the game's generate_fn adds sites: `off`, `when_few` (fewer sites than [member generate_count]) or `always`.
 @export_enum("off", "when_few", "always") var generate: String = "off"
@@ -158,7 +170,7 @@ func strategies() -> PackedStringArray:
 	return out
 
 
-const STRATEGIES := ["map", "spread", "grouped", "near_team", "far_from_enemies"]
+const STRATEGIES := ["map", "scatter", "spread", "grouped", "near_team", "far_from_enemies"]
 
 
 func validate() -> DotResult:
@@ -248,6 +260,7 @@ static func deathmatch() -> DotSpawnRules:
 	# it. See docs/gdscript-hazards.md, "A script that names itself".
 	var r := new()
 	r.mode = Mode.RANDOM
+	r.strategy = "scatter,map"
 	r.respawn_delay_sec = 3.0
 	r.protection_sec = 0.0
 	r.cooldown_ticks = 128

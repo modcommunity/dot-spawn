@@ -1,4 +1,4 @@
-extends "res://examples/selftest/strategy_tests.gd"
+extends "res://examples/selftest/scatter_tests.gd"
 
 ## The marker and area node sections.
 
