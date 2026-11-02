@@ -56,6 +56,11 @@ func _test_scatter() -> void:
 
 	_check(near_repeat == 0, "no site is picked twice running (%d repeats)" % near_repeat)
 
+	_test_scatter_batches(rules)
+	_test_scatter_enemies(rules)
+
+
+func _test_scatter_batches(rules: DotSpawnRules) -> void:
 	var db := _grid_director(rules)
 	var placed: Array = []
 	db.enemies_fn = func(_t: StringName, _k: String) -> Array: return placed
@@ -87,6 +92,8 @@ func _test_scatter() -> void:
 	_check(most <= 1280 * 4 / 100, "over 40 batches no point takes more than 4%% of spawns (%d of 1280)" % most)
 	_check(per_site.size() >= 90, "over 40 batches nearly every one of the 100 points is used (%d)" % per_site.size())
 
+
+func _test_scatter_enemies(rules: DotSpawnRules) -> void:
 	var seen := _grid_director(rules)
 	var enemy := Vector3(55.0, 0.0, 55.0)
 	seen.enemies_fn = func(_t: StringName, _k: String) -> Array: return [enemy]
