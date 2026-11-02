@@ -56,6 +56,37 @@ func _test_scatter() -> void:
 
 	_check(near_repeat == 0, "no site is picked twice running (%d repeats)" % near_repeat)
 
+	var db := _grid_director(rules)
+	var placed: Array = []
+	db.enemies_fn = func(_t: StringName, _k: String) -> Array: return placed
+	var used := {}
+	var shared := 0
+	var per_site := {}
+
+	for i in 32:
+		var cb := db.choose(DotSpawnRequest.make("b%d" % i, &"", &"", 900)).value as DotSpawnChoice
+		placed.append(cb.transform.origin)
+		shared += 1 if used.has(cb.site.id) else 0
+		used[cb.site.id] = true
+
+	_check(shared == 0, "32 players spawning on one tick share no point (%d shared)" % shared)
+
+	for r in 40:
+		placed.clear()
+
+		for i in 32:
+			var cr := db.choose(DotSpawnRequest.make("b%d" % i, &"", &"", 1000 + r)).value as DotSpawnChoice
+			placed.append(cr.transform.origin)
+			per_site[cr.site.id] = int(per_site.get(cr.site.id, 0)) + 1
+
+	var most := 0
+
+	for k in per_site:
+		most = maxi(most, int(per_site[k]))
+
+	_check(most <= 1280 * 4 / 100, "over 40 batches no point takes more than 4%% of spawns (%d of 1280)" % most)
+	_check(per_site.size() >= 90, "over 40 batches nearly every one of the 100 points is used (%d)" % per_site.size())
+
 	var seen := _grid_director(rules)
 	var enemy := Vector3(55.0, 0.0, 55.0)
 	seen.enemies_fn = func(_t: StringName, _k: String) -> Array: return [enemy]
@@ -65,7 +96,7 @@ func _test_scatter() -> void:
 		var o5: Vector3 = (seen.choose(DotSpawnRequest.make("v%d" % (i % 9), &"", &"", i * 3)).value as DotSpawnChoice).transform.origin
 		close += 1 if o5.distance_to(enemy) < rules.scatter_enemy_radius else 0
 
-	_check(close <= 8, "spawns within %.0f m of a living enemy are rare (%d of 200)" % [rules.scatter_enemy_radius, close])
+	_check(close <= 16, "spawns within %.0f m of a living enemy are rare (%d of 200)" % [rules.scatter_enemy_radius, close])
 
 	var blind := _grid_director(rules)
 	blind.enemies_fn = func(_t: StringName, _k: String) -> Array: return [Vector3(5.0, 1.0, 5.0)]

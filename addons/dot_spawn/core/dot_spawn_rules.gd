@@ -81,6 +81,9 @@ var mode: int = 0
 ## `scatter`: sites nearer than this to a living enemy are weighted down hard, in metres.
 @export_range(0.0, 1000.0, 0.5) var scatter_enemy_radius: float = 15.0
 
+## `scatter`: a site nearer than this to a living enemy or a recent pick is never drawn while another site is free (0 off), so no two players share a point in one batch.
+@export_range(0.0, 10.0, 0.1) var scatter_min_gap: float = 2.0
+
 ## `scatter`: the weight factor for a site an enemy can see (1 ignores sight).
 @export_range(0.0, 1.0, 0.01) var scatter_seen_factor: float = 0.05
 

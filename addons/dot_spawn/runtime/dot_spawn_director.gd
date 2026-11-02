@@ -618,6 +618,12 @@ func _pick_scatter(
 		total += w
 
 	if total <= 0.0:
+		# Every site is taken: draw by weight alone rather than leave somebody unplaced.
+		for i in pool.size():
+			weights[i] = maxf(pool[i].weight, 0.0)
+			total += weights[i]
+
+	if total <= 0.0:
 		return null
 
 	var can_see: Variant = context.get("can_see", null)
@@ -648,6 +654,10 @@ func _pick_scatter(
 
 func _scatter_damping(at: Vector3, enemies: Array) -> float:
 	var f := 1.0
+
+	if rules.scatter_min_gap > 0.0:
+		if _nearest_distance_to(at, enemies) < rules.scatter_min_gap or _nearest_distance_to(at, _recent) < rules.scatter_min_gap:
+			return 0.0
 
 	if rules.scatter_radius > 0.0:
 		var near := INF
