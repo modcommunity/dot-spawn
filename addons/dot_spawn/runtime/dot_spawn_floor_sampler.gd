@@ -1,7 +1,7 @@
 class_name DotSpawnFloorSampler
 extends RefCounted
 
-## Spawn candidates for a map that has no spawn entities: floor points found by ray, spread over the whole level.
+## Spawn candidates for a map that has no spawn entities: floor points cast by ray, spread over the whole level.
 ##
 ## Physics-free on purpose: the game passes `ray_fn`, so this runs over a trace, a navmesh query or a test grid.
 
