@@ -202,3 +202,115 @@ class MetaMatchesRequest extends DotSpawnCondition:
 
 	func reason() -> String:
 		return "its '%s' is not the one the request asked for" % key
+
+
+## Refuses a point whose `max_alive` is reached; the host puts `alive_by_site` (id to count) in the request extra.
+class MaxAlive extends DotSpawnCondition:
+	func _init() -> void:
+		id = &"max_alive"
+
+	func allows(site: DotSpawnSite, context: Dictionary) -> bool:
+		var cap := int(site.meta.get(DotSpawnPointDef.META_MAX_ALIVE, 0))
+
+		if cap <= 0:
+			return true
+
+		var alive: Dictionary = (context.get("extra", {}) as Dictionary).get("alive_by_site", {})
+		return int(alive.get(site.id, alive.get(String(site.id), 0))) < cap
+
+	func reason() -> String:
+		return "it already has its maximum alive"
+
+
+## Refuses a point that is not live in the request's `phase`; a request without one matches every point.
+class PhaseIs extends DotSpawnCondition:
+	func _init() -> void:
+		id = &"phase_is"
+
+	func allows(site: DotSpawnSite, context: Dictionary) -> bool:
+		var phases: Array = site.meta.get(DotSpawnPointDef.META_PHASES, [])
+		var extra: Dictionary = context.get("extra", {})
+
+		if phases.is_empty() or not extra.has("phase"):
+			return true
+
+		return phases.has(str(extra["phase"]))
+
+	func reason() -> String:
+		return "it is not live in this phase"
+
+
+## Refuses a point of the other kind (`player` or `npc`) than the request's `kind`; `both` fits either.
+class KindIs extends DotSpawnCondition:
+	func _init() -> void:
+		id = &"kind_is"
+
+	func allows(site: DotSpawnSite, context: Dictionary) -> bool:
+		var kind := str(site.meta.get(DotSpawnPointDef.META_KIND, "both"))
+		var extra: Dictionary = context.get("extra", {})
+
+		if kind == "both" or not extra.has("kind"):
+			return true
+
+		return kind == str(extra["kind"])
+
+	func reason() -> String:
+		return "it is for the other kind of spawn"
+
+
+## Keeps a point inside its band of distance from the nearest player (enemies and friends); no players, no opinion.
+class DistanceBand extends DotSpawnCondition:
+	func _init() -> void:
+		id = &"distance_band"
+
+	func allows(site: DotSpawnSite, context: Dictionary) -> bool:
+		var players: Array = (context.get("enemies", []) as Array) + (context.get("friends", []) as Array)
+		var nearest := DotSpawnScoring.nearest_distance(site, players)
+
+		if nearest == INF:
+			return true
+
+		var lo := float(site.meta.get(DotSpawnPointDef.META_MIN_DIST, 0.0))
+		var hi := float(site.meta.get(DotSpawnPointDef.META_MAX_DIST, 0.0))
+		return nearest >= lo and (hi <= 0.0 or nearest <= hi)
+
+	func reason() -> String:
+		return "no player is inside its distance band"
+
+
+## Applies a point's `sight` rule through the context's `can_see`; without one there is no opinion.
+class SightRule extends DotSpawnCondition:
+	func _init() -> void:
+		id = &"sight_rule"
+
+	func allows(site: DotSpawnSite, context: Dictionary) -> bool:
+		var rule := str(site.meta.get(DotSpawnPointDef.META_SIGHT, "any"))
+		var can_see: Variant = context.get("can_see", null)
+
+		if rule == "any" or not (can_see is Callable) or not (can_see as Callable).is_valid():
+			return true
+
+		var players: Array = (context.get("enemies", []) as Array) + (context.get("friends", []) as Array)
+		var seen := DotSpawnScoring.seen_by_any(site.position, players, can_see)
+		return not seen if rule == "hidden_from_players" else seen
+
+	func reason() -> String:
+		return "its sight rule is not met"
+
+
+## Turns `weight` into a score: zero refuses the point, otherwise (weight - 1) * step.
+class WeightBonus extends DotSpawnCondition:
+	var step: float = 100.0
+
+	func _init(p_step: float = 100.0) -> void:
+		step = p_step
+		id = &"weight_bonus"
+
+	func allows(site: DotSpawnSite, _context: Dictionary) -> bool:
+		return site.weight > 0.0
+
+	func bonus(site: DotSpawnSite, _context: Dictionary) -> float:
+		return (site.weight - 1.0) * step
+
+	func reason() -> String:
+		return "its weight is zero"
