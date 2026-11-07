@@ -240,7 +240,7 @@ class PhaseIs extends DotSpawnCondition:
 		return "it is not live in this phase"
 
 
-## Refuses a point of the other kind (`player` or `npc`) than the request's `kind`; `both` fits either.
+## Refuses a point of the other kind (`player` or `npc`) than the request's `kind`; `both` fits either. A `flag` point fits only a request that asks for `flag`, so nobody spawns on a flag stand.
 class KindIs extends DotSpawnCondition:
 	func _init() -> void:
 		id = &"kind_is"
@@ -248,6 +248,9 @@ class KindIs extends DotSpawnCondition:
 	func allows(site: DotSpawnSite, context: Dictionary) -> bool:
 		var kind := str(site.meta.get(DotSpawnPointDef.META_KIND, "both"))
 		var extra: Dictionary = context.get("extra", {})
+
+		if kind == "flag":
+			return str(extra.get("kind", "")) == "flag"
 
 		if kind == "both" or not extra.has("kind"):
 			return true

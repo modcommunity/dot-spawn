@@ -3,7 +3,7 @@ extends RefCounted
 
 ## Per-map spawn point edits an admin authors: the `spawn` profile kind, one profile per map id.
 ##
-## The profile's `points` mapping holds id -> {pos, yaw, team, enabled, weight, tags, removed}. An id the map already has is patched, any other id is a new `authored` point. Save writes the server tier, which is the exportable diff.
+## The profile's `points` mapping holds id -> {pos, yaw, team, kind, enabled, weight, tags, removed}. An id the map already has is patched, any other id is a new `authored` point. Save writes the server tier, which is the exportable diff.
 
 const ADDON := "dot_spawn"
 const KIND := "spawn"
@@ -25,7 +25,7 @@ static func make_set(game: String, roots: PackedStringArray = PackedStringArray(
 
 ## A site as an override entry.
 static func entry_of(site: DotSpawnSite) -> Dictionary:
-	return {
+	var e := {
 		"pos": [site.position.x, site.position.y, site.position.z],
 		"yaw": site.yaw,
 		"team": String(site.team),
@@ -33,6 +33,12 @@ static func entry_of(site: DotSpawnSite) -> Dictionary:
 		"weight": site.weight,
 		"tags": Array(site.tags),
 	}
+	var kind := str(site.meta.get(DotSpawnPointDef.META_KIND, ""))
+
+	if kind != "" and kind != "both":
+		e["kind"] = kind
+
+	return e
 
 
 ## Patches [param site] with the keys [param e] holds; absent keys keep the site's value.
@@ -53,6 +59,9 @@ static func patch(site: DotSpawnSite, e: Dictionary) -> void:
 
 	if e.has("weight"):
 		site.weight = maxf(float(e["weight"]), 0.0)
+
+	if e.has("kind"):
+		site.meta[DotSpawnPointDef.META_KIND] = str(e["kind"])
 
 	if e.has("tags") and e["tags"] is Array:
 		var t := PackedStringArray()
