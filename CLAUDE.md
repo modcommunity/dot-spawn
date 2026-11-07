@@ -36,7 +36,7 @@ Paths except `examples/` are in `addons/dot_spawn/`.
 
 ## Running and testing
 
-The family's two steps ([game-dev/CLAUDE.md](../../CLAUDE.md#validating-anything)), then `timeout 120 godot --headless --path . res://examples/spawn_selftest.tscn`.
+The family's two steps ([family CLAUDE.md](../../CLAUDE.md#validating-anything)), then `timeout 120 godot --headless --path . res://examples/spawn_selftest.tscn`.
 
 ## Rules that bite
 
