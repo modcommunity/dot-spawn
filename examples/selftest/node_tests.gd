@@ -1,4 +1,4 @@
-extends "res://examples/selftest/point_def_tests.gd"
+extends "res://examples/selftest/flag_tests.gd"
 
 ## The marker and area node sections.
 

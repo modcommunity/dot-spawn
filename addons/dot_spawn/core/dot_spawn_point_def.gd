@@ -10,6 +10,8 @@ const VERSION := 1
 const KIND_PLAYER := &"player"
 const KIND_NPC := &"npc"
 const KIND_BOTH := &"both"
+## Where a team's flag stands (and is captured); never a place to enter the world. `team` names whose.
+const KIND_FLAG := &"flag"
 
 const SIGHT_ANY := &"any"
 const SIGHT_HIDDEN := &"hidden_from_players"
@@ -131,8 +133,11 @@ func problem() -> String:
 	if id == &"":
 		return "a point needs an id"
 
-	if not [KIND_PLAYER, KIND_NPC, KIND_BOTH].has(kind):
+	if not [KIND_PLAYER, KIND_NPC, KIND_BOTH, KIND_FLAG].has(kind):
 		return "unknown kind '%s'" % kind
+
+	if kind == KIND_FLAG and team == &"":
+		return "a flag spawn needs a team"
 
 	if not [SIGHT_ANY, SIGHT_HIDDEN, SIGHT_VISIBLE].has(sight):
 		return "unknown sight rule '%s'" % sight
@@ -150,7 +155,7 @@ func problem() -> String:
 static func schema() -> Array:
 	return [
 		DotProfileSet.field("id", "string", "point"),
-		DotProfileSet.field("kind", "string", "both", {"choices": ["player", "npc", "both"]}),
+		DotProfileSet.field("kind", "string", "both", {"choices": ["player", "npc", "both", "flag"]}),
 		DotProfileSet.field("enabled", "bool", true),
 		DotProfileSet.field("pos", "vec3", [0.0, 0.0, 0.0]),
 		DotProfileSet.field("yaw", "float", 0.0),

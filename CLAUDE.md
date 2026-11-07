@@ -26,6 +26,7 @@ Also requires **dot-profile** (`DotProfileSet`, `DotProfile`, `DotProfileRuntime
 | `core/dot_spawn_condition.gd` | `DotSpawnCondition`: the extension point, `allows()` (veto) and `bonus()` (opinion) |
 | `core/dot_spawn_conditions.gd` | `MinimumEnemyDistance`, `OutOfSight`, `NotOccupied`, `MetaEquals`, `MetaMatchesRequest` |
 | `core/dot_spawn_point_def.gd`, `dot_spawn_point_set.gd` | `DotSpawnPointDef` (one authored point, every setting, `to_site()`, versioned `to_dict`/`from_dict`, `schema()`), `DotSpawnPointSet` (`apply_to` overrides map sites by id without editing them); enforced by `MaxAlive`, `PhaseIs`, `KindIs`, `DistanceBand`, `SightRule`, `WeightBonus` in `DotSpawnConditions` |
+| `core/dot_spawn_flags.gd` | `DotSpawnFlags`: flag stands among the sites (kind `flag`, `team` as a number, any number of teams), `bases(sites, team_count)` with a cluster fallback for a map without flags; a `KindIs` veto keeps players off a stand |
 | `core/dot_spawn_protection.gd` | `DotSpawnProtection`: who is briefly un-killable, `blocks`, `advance`, `ended` |
 | `core/dot_spawn_watch.gd`, `dot_spawn_cull.gd`, `dot_spawn_cull_rules.gd` | `DotSpawnWatch` (stuck, off nav, fell out, unreachable, far verdicts, time-sliced), `DotSpawnCull` (one `DotSpawnDecision` per mover: nudge, teleport, despawn, kill), `DotSpawnCullRules` (`DOT_SPAWN_CULL_*`, `--cull-*`, off by default); the host applies decisions through callables |
 | `nodes/` | `DotSpawnMarker3D`, `DotSpawnMarker2D`, `DotSpawnArea3D` (optionally a safe zone), `DotSpawnArea2D`; each has `to_site()` |
