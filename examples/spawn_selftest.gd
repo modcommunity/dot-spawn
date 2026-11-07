@@ -11,8 +11,8 @@ extends "res://examples/selftest/node_tests.gd"
 ## godot --headless --path . res://examples/spawn_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 18
-const CHECKS := 305
+const SECTIONS := 19
+const CHECKS := 321
 
 
 func _ready() -> void:
@@ -42,6 +42,7 @@ func _run() -> void:
 	_test_floor_sampler()
 	_test_overrides()
 	_test_point_defs()
+	_test_flag_spawns()
 
 	_line("")
 	_line("%d sections, %d passed, %d failed" % [_section_count, _passed, _failed])
