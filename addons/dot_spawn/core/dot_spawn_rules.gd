@@ -134,7 +134,7 @@ var mode: int = 0
 ##
 ## The setting that stops spawn camping from being free, and the one a competitive mode
 ## turns off because it can be abused to win a fight by dying first.
-@export_range(0.0, 60.0, 0.1) var protection_sec: float = 0.0
+@export_range(0.0, 60.0, 0.1) var protection_sec: float = 3.0
 
 ## Whether protection ends the moment the protected thing attacks.
 ##
@@ -145,6 +145,21 @@ var mode: int = 0
 
 ## Whether protection ends when the protected thing leaves the area it spawned in.
 @export var protection_breaks_on_leaving: bool = false
+
+## Whether protection ends once the protected thing has moved [member protection_break_distance]
+## from where it spawned, in any direction (straight line, height counts).
+##
+## On by default: a player who spends the whole window walking to a better spot while
+## untouchable has not been protected, they have been given a free flank.
+@export var protection_breaks_on_distance: bool = true
+
+## Metres of travel from the spawn point that end protection. Default 2 feet (0.6096 m).
+## Zero or less disables the distance check whatever [member protection_breaks_on_distance] says.
+@export_range(0.0, 100.0, 0.01) var protection_break_distance: float = 0.6096
+
+## Whether a protected body is drawn inside a bubble (see DotSpawnBubble). Presentation
+## only: the ledger never reads it, a client or a game's renderer does.
+@export var protection_bubble: bool = true
 
 ## Whether a protected thing can still be damaged by the world — falling, drowning.
 ##

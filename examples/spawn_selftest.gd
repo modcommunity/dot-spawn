@@ -11,8 +11,8 @@ extends "res://examples/selftest/node_tests.gd"
 ## godot --headless --path . res://examples/spawn_selftest.tscn
 ## [/codeblock]
 
-const SECTIONS := 19
-const CHECKS := 321
+const SECTIONS := 20
+const CHECKS := 334
 
 
 func _ready() -> void:
@@ -32,6 +32,7 @@ func _run() -> void:
 	_test_fallback()
 	_test_respawns()
 	_test_protection()
+	_test_bubble()
 	_test_markers()
 	_test_areas()
 	_test_watch()
@@ -135,7 +136,8 @@ func _test_rules() -> void:
 	_check(r.validate().ok, "the defaults validate")
 	_check(r.mode == DotSpawnRules.Mode.RANDOM, "and pick at random")
 	_check(r.respawn_delay_ticks(RATE) == 192, "three seconds at 64 Hz is 192 ticks")
-	_check(r.protection_ticks(RATE) == 0, "with no protection by default")
+	_check(r.protection_ticks(RATE) == 192, "with three seconds of protection by default")
+	_check(r.protection_breaks_on_distance and r.protection_bubble and absf(r.protection_break_distance - 0.6096) < 0.0001, "ending after two feet of travel, drawn as a bubble")
 
 	var dm := DotSpawnRules.deathmatch()
 	_check(
@@ -639,6 +641,20 @@ func _test_respawns() -> void:
 	w.queue_free()
 
 
+func _test_bubble() -> void:
+	_section("bubble")
+	var body := Node3D.new()
+	add_child(body)
+	var b := DotSpawnBubble3D.new()
+	body.add_child(b)
+	_check(not b.visible, "a new bubble is hidden")
+	b.sync(true)
+	_check(b.visible, "protected shows it")
+	b.sync(false)
+	_check(not b.visible, "and unprotected hides it")
+	body.queue_free()
+
+
 func _test_protection() -> void:
 	_section("protection")
 
@@ -694,6 +710,28 @@ func _test_protection() -> void:
 	p.grant("zoe", 0, RATE)
 	p.revoke("zoe", 5)
 	_check(not p.is_protected("zoe", 5), "and it can be taken away outright")
+
+	# Distance: two feet of travel in any direction, once, from where it was granted.
+	rules.protection_sec = 0.5
+	rules.protection_breaks_on_attack = true
+	var o := Vector3(10, 2, -4)
+	var half := p.grant("dan", 0, RATE, &"", o)
+	_check(half == 32, "half a second at 64 Hz is 32 ticks (the time is a float)")
+	_check(not p.note_position("dan", o + Vector3(0.5, 0, 0), 1), "half a metre is under two feet")
+	_check(p.is_protected("dan", 1), "and protection holds")
+	_check(p.note_position("dan", o + Vector3(0, 0, -0.7), 2), "0.7 m sideways is past two feet")
+	_check(ended.back()[1] == "moved", "ended as 'moved'")
+	p.grant("dan", 0, RATE, &"", o)
+	_check(p.note_position("dan", o + Vector3(0, 0.7, 0), 2), "straight up counts too (any direction)")
+	p.grant("dan", 0, RATE, &"", o)
+	rules.protection_break_distance = 5.0
+	_check(not p.note_position("dan", o + Vector3(0, 0, 3), 2), "the distance is configurable")
+	rules.protection_break_distance = 0.6096
+	rules.protection_breaks_on_distance = false
+	_check(not p.note_position("dan", o + Vector3(0, 0, 30), 2), "and the check can be switched off")
+	rules.protection_breaks_on_distance = true
+	p.grant("eve", 0, RATE)
+	_check(not p.note_position("eve", Vector3(99, 99, 99), 2), "a grant without a position never distance-breaks")
 
 	rules.protection_sec = 0.0
 	var none := p.grant("kit", 77, RATE)
