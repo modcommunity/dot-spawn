@@ -302,7 +302,7 @@ func _commit_choice(choice: DotSpawnChoice, request: DotSpawnRequest, why: Strin
 		if protection == null:
 			protection = DotSpawnProtection.new(rules)
 		choice.protected_until = protection.grant(
-			request.key, request.tick, tick_rate, choice.site.id
+			request.key, request.tick, tick_rate, choice.site.id, choice.transform.origin
 		)
 
 	chosen.emit(request.key, choice)

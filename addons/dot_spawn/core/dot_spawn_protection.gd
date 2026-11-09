@@ -18,7 +18,7 @@ extends RefCounted
 # spawn; DotSpawnDirector, which decides the spawn, is what logs.
 
 ## Somebody's protection ended, and why: [code]&"expired"[/code],
-## [code]&"attacked"[/code], [code]&"left"[/code] or [code]&"revoked"[/code].
+## [code]&"attacked"[/code], [code]&"left"[/code], [code]&"moved"[/code] or [code]&"revoked"[/code].
 signal ended(key: String, reason: StringName, tick: int)
 
 ## Granted.
@@ -32,6 +32,10 @@ var _until: Dictionary = {}
 ## key -> the site id they spawned on, for the leave check.
 var _origin: Dictionary = {}
 
+## key -> where they were when protected, for the distance check. Absent when the grant
+## gave no position, which turns the distance check off for that key.
+var _anchor: Dictionary = {}
+
 
 func _init(p_rules: DotSpawnRules = null) -> void:
 	rules = p_rules if p_rules != null else DotSpawnRules.new()
@@ -42,17 +46,23 @@ func _init(p_rules: DotSpawnRules = null) -> void:
 ## Returns the tick it runs out on, or [param tick] itself when protection is off — so
 ## a caller can log the number without branching, and a zero-length grant is not a
 ## special case anywhere downstream.
-func grant(key: String, tick: int, tick_rate: int, site_id: StringName = &"") -> int:
+func grant(key: String, tick: int, tick_rate: int, site_id: StringName = &"", position: Variant = null) -> int:
 	var ticks := rules.protection_ticks(tick_rate)
 
 	if ticks <= 0:
 		_until.erase(key)
 		_origin.erase(key)
+		_anchor.erase(key)
 		return tick
 
 	var until := tick + ticks
 	_until[key] = until
 	_origin[key] = site_id
+
+	if position is Vector3:
+		_anchor[key] = position
+	else:
+		_anchor.erase(key)
 
 	granted.emit(key, until)
 	return until
@@ -123,6 +133,23 @@ func note_left_area(key: String, tick: int) -> bool:
 	return true
 
 
+## Called each tick with where a protected thing is now. Ends protection (reason
+## [code]&"moved"[/code]) once it is further than the rules' distance from the position it
+## was granted at. Returns whether protection ended.
+func note_position(key: String, position: Vector3, tick: int) -> bool:
+	if not rules.protection_breaks_on_distance or rules.protection_break_distance <= 0.0:
+		return false
+
+	if not _anchor.has(key) or not is_protected(key, tick):
+		return false
+
+	if (_anchor[key] as Vector3).distance_to(position) <= rules.protection_break_distance:
+		return false
+
+	_end(key, &"moved", tick)
+	return true
+
+
 func revoke(key: String, tick: int) -> void:
 	if _until.has(key):
 		_end(key, &"revoked", tick)
@@ -148,6 +175,7 @@ func advance(tick: int) -> void:
 func clear() -> void:
 	_until.clear()
 	_origin.clear()
+	_anchor.clear()
 
 
 func protected_keys() -> PackedStringArray:
@@ -185,4 +213,5 @@ func describe() -> String:
 func _end(key: String, reason: StringName, tick: int) -> void:
 	_until.erase(key)
 	_origin.erase(key)
+	_anchor.erase(key)
 	ended.emit(key, reason, tick)
