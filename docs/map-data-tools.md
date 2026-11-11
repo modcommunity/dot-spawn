@@ -80,7 +80,7 @@ The client half is an overlay any admin can toggle: markers for every point (col
 | `spawn-watch-cull` | dot-spawn | M | |
 | `bot-soak-harness` | dot-bot | M | `spawn-watch-cull` |
 | `zz-watch-cull-wire` | game-zombie-zone | S | `spawn-watch-cull` |
-| `soak-arena` | game-arena | S | `bot-soak-harness` |
+| `soak-arena` | game-fatal-contact | S | `bot-soak-harness` |
 | `soak-zombie-zone` | game-zombie-zone | S | `soak-arena`, `zz-watch-cull-wire` |
 | `soak-rollout` | the other games with bots, one builder each | S each | `soak-arena` |
 | `spawn-spread-strategy` | dot-spawn | M | `spawn-watch-cull` |
