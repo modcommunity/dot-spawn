@@ -92,7 +92,7 @@ The client half is an overlay any admin can toggle: markers for every point (col
 | `map-edit-commands` | dot-game | L | `map-data-store`, `nav-admin-rebake-tool` |
 | `map-edit-overlay` | dot-game | M | `map-edit-commands` |
 | `npc-director-sites` | dot-npc-ai-director | M | `spawn-point-defs` |
-| `playground-spawn-tool` | game-playground | S | `map-edit-commands` |
+| `playground-spawn-tool` | game-playlot | S | `map-edit-commands` |
 
 ## Open questions
 
