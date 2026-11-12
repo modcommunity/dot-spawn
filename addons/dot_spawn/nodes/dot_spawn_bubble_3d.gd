@@ -55,6 +55,14 @@ func _init() -> void:
 
 func _ready() -> void:
 	_mesh.position = center_offset
+	# READY turns processing on for an overridden _process; a hidden bubble (most of them) has nothing to animate.
+	set_process(visible)
+
+
+func _notification(what: int) -> void:
+	# Node3D sends no visibility notification outside the tree, so re-check on every entry.
+	if what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_ENTER_TREE:
+		set_process(visible)
 
 
 ## Shows or hides the bubble. When [member target] is set the bubble also moves to it.

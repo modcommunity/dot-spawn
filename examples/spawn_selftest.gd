@@ -12,7 +12,7 @@ extends "res://examples/selftest/node_tests.gd"
 ## [/codeblock]
 
 const SECTIONS := 20
-const CHECKS := 334
+const CHECKS := 338
 
 
 func _ready() -> void:
@@ -648,10 +648,17 @@ func _test_bubble() -> void:
 	var b := DotSpawnBubble3D.new()
 	body.add_child(b)
 	_check(not b.visible, "a new bubble is hidden")
+	_check(not b.is_processing(), "and a hidden bubble does no per-frame work")
 	b.sync(true)
 	_check(b.visible, "protected shows it")
+	_check(b.is_processing(), "and a shown bubble animates")
 	b.sync(false)
 	_check(not b.visible, "and unprotected hides it")
+	_check(not b.is_processing(), "and stops animating")
+	body.remove_child(b)
+	b.sync(true)
+	body.add_child(b)
+	_check(b.is_processing(), "shown while out of the tree, it animates once back in")
 	body.queue_free()
 
 
