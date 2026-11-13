@@ -15,12 +15,15 @@ static func pick_scatter(
 	var enemies: Array = context.get("enemies", [])
 	var weights := PackedFloat64Array()
 	var total := 0.0
+	# Packed once, not per site: the damping reads both lists for every site in the pool.
+	var enemy_pts := _packed(enemies)
+	var recent_pts := _packed(recent)
 
 	for site in pool:
 		var w := maxf(site.weight, 0.0)
 
 		if w > 0.0:
-			w *= scatter_damping(rules, recent, site.position, enemies)
+			w *= _damping(rules, recent_pts, site.position, enemy_pts)
 
 		weights.append(w)
 		total += w
@@ -61,23 +64,58 @@ static func pick_scatter(
 
 
 static func scatter_damping(rules: DotSpawnRules, recent: Array[Vector3], at: Vector3, enemies: Array) -> float:
+	return _damping(rules, _packed(recent), at, _packed(enemies))
+
+
+static func _packed(points: Array) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	out.resize(points.size())
+
+	for i in points.size():
+		out[i] = points[i] as Vector3
+
+	return out
+
+
+## The same answer as [method nearest_to]: the minimum of the square roots is the square root of the minimum.
+static func _nearest_packed(at: Vector3, points: PackedVector3Array) -> float:
+	var nearest_sq := INF
+
+	for p in points:
+		var d := at.distance_squared_to(p)
+
+		if d < nearest_sq:
+			nearest_sq = d
+
+	return sqrt(nearest_sq)
+
+
+static func _damping(rules: DotSpawnRules, recent: PackedVector3Array, at: Vector3, enemies: PackedVector3Array) -> float:
 	var f := 1.0
+	var e_near := -1.0
+	var r_near := -1.0
 
 	if rules.scatter_min_gap > 0.0:
-		if nearest_to(at, enemies) < rules.scatter_min_gap or nearest_to(at, recent) < rules.scatter_min_gap:
+		e_near = _nearest_packed(at, enemies)
+
+		if e_near < rules.scatter_min_gap:
+			return 0.0
+
+		r_near = _nearest_packed(at, recent)
+
+		if r_near < rules.scatter_min_gap:
 			return 0.0
 
 	if rules.scatter_radius > 0.0:
-		var near := INF
+		if r_near < 0.0:
+			r_near = _nearest_packed(at, recent)
 
-		for r in recent:
-			near = minf(near, at.distance_to(r))
-
-		if near < rules.scatter_radius:
-			f *= 0.02 + 0.98 * (near / rules.scatter_radius)
+		if r_near < rules.scatter_radius:
+			f *= 0.02 + 0.98 * (r_near / rules.scatter_radius)
 
 	if rules.scatter_enemy_radius > 0.0:
-		var e_near := nearest_to(at, enemies)
+		if e_near < 0.0:
+			e_near = _nearest_packed(at, enemies)
 
 		if e_near < rules.scatter_enemy_radius:
 			var t := e_near / rules.scatter_enemy_radius
