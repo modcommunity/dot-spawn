@@ -12,7 +12,7 @@ extends "res://examples/selftest/node_tests.gd"
 ## [/codeblock]
 
 const SECTIONS := 20
-const CHECKS := 338
+const CHECKS := 339
 
 
 func _ready() -> void:
@@ -659,6 +659,9 @@ func _test_bubble() -> void:
 	b.sync(true)
 	body.add_child(b)
 	_check(b.is_processing(), "shown while out of the tree, it animates once back in")
+	var b2 := DotSpawnBubble3D.new()
+	body.add_child(b2)
+	_check(b2._mat != b._mat and b2._mat.shader == b._mat.shader, "two bubbles share one compiled Shader, each with its own material")
 	body.queue_free()
 
 

@@ -28,6 +28,16 @@ void fragment() {
 
 var target: Node3D = null
 
+## One compiled Shader for every bubble (a Shader per instance compiled about 26 ms each); tint and pulse stay per instance on the material.
+static var _shader: Shader = null
+
+
+static func _shared_shader() -> Shader:
+	if _shader == null:
+		_shader = Shader.new()
+		_shader.code = SHADER_CODE
+	return _shader
+
 var _mesh: MeshInstance3D = null
 var _mat: ShaderMaterial = null
 var _time: float = 0.0
@@ -44,10 +54,8 @@ func _init() -> void:
 	sphere.radial_segments = 32
 	sphere.rings = 16
 	_mesh.mesh = sphere
-	var sh := Shader.new()
-	sh.code = SHADER_CODE
 	_mat = ShaderMaterial.new()
-	_mat.shader = sh
+	_mat.shader = _shared_shader()
 	_mat.set_shader_parameter("tint", tint)
 	_mesh.material_override = _mat
 	add_child(_mesh)
