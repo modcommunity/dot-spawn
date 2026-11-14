@@ -1,5 +1,3 @@
-# dot-spawn
-
 Decides where players, NPCs and props enter the world, and why that place rather than another. It answers the question and emits a signal; your game does the moving.
 
 ## Install
