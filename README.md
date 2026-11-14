@@ -1,34 +1,11 @@
-This is the **spawn** asset for TMC's **Dot** collection. It decides where anything enters the world — players, NPCs, props — and, more usefully, why that place rather than another one.
+# dot-spawn
 
-This collection of assets provides modular building blocks for creating games and applications within the TMC ecosystem, ensuring consistency and interoperability across all `dot-*` assets. This includes core functionality, networking, authentication, cloud integration, and more.
-
-**These assets are COMPLETELY OPEN SOURCE**. You are free to use, modify, and distribute them under the terms of the MIT license. The only thing not open source is the back-end web infrastructure. So if you opt into using your own authentication backend instead of integrating with TMC, you will need to build and integrate your own back-end infrastructure.
-
-## From Maintainer & WARNING
-This asset, along with all the others, was built initially with **Claude Code** and will continue to be maintained and extended using it. This is because I (`gamemann`) cannot build the entire TMC platform alone (I wish I could lol).
-
-**Please treat this as partially tested.** Every asset has its own headless test suite and those suites pass, but very little of this has been in front of real players yet. Expect rough edges, and please report anything you run into.
-
-I intend on reviewing code, testing, and editing documentation regularly. If you're interested in helping out, please let me know!
-
-## An area is not a bigger point
-
-A point spawn works for one thing at a time, and fails in the exact case a round begins: sixteen collision capsules at one coordinate, which the engine resolves by launching them across the map. `DotSpawnArea3D` and `DotSpawnArea2D` hold as many as they have room for, and the point inside is picked **per request** rather than per site.
-
-An area is also the natural place for a **safe zone** — and that is a rule a damage system *asks about* rather than a rule this addon enforces:
-
-```gdscript
-if area.protects_key(victim_key, attacker_team):
-    return 0.0
-```
-
-One question, one answer. dot-combat can call it; dot-spawn never calls dot-combat; a game with neither can use the same area for a shop, a lobby or a finish line.
+Decides where players, NPCs and props enter the world, and why that place rather than another. It answers the question and emits a signal; your game does the moving.
 
 ## Install
 
-Copy `addons/dot_spawn/` and `addons/dot_core/` into your project and enable both in *Project → Project Settings → Plugins*.
-
-Requires Godot 4.7 or newer.
+1. Get [Godot 4.7](https://godotengine.org/download).
+2. Either use [dot-bootstrap](https://github.com/modcommunity/dot-bootstrap), which clones every project and links the addons, or copy `addons/dot_spawn/` and [dot-core](https://github.com/modcommunity/dot-core)'s `addons/dot_core/` into your project and enable both in *Project > Project Settings > Plugins*.
 
 ## Use
 
@@ -53,47 +30,65 @@ for key in spawns.advance(tick):
     respawn(key)
 ```
 
-## Six ways to choose
+`can_see_fn` is supplied by you because this addon has no opinion about which collision layers count. It does not know what health is either.
 
-| | |
+## Areas
+
+`DotSpawnArea3D` and `DotSpawnArea2D` hold as many spawns as they have room for, and pick the point inside per request. A single point cannot start a round: sixteen capsules at one coordinate get launched across the map.
+
+An area can also be a safe zone. Your damage code asks, and this addon never enforces it:
+
+```gdscript
+if area.protects_key(victim_key, attacker_team):
+    return 0.0
+```
+
+## Ways to choose
+
+| Selector | Picks |
 | --- | --- |
-| `random` | Uniform. **What deathmatch wants.** A safest-first selector in a free-for-all sends everyone to the same quiet corner, deterministically, and everyone learns it. |
+| `random` | Uniform. Best for deathmatch: a safest-first rule sends everyone to the same quiet corner. |
 | `safest` | Highest score: far from enemies, out of sight, not recently used, not occupied. |
-| `furthest` | Furthest from the nearest enemy, and nothing else. |
-| `round_robin` | Each in turn. Predictable on purpose, for a tutorial or a test. |
+| `furthest` | Furthest from the nearest enemy, nothing else. |
+| `round_robin` | Each in turn. Predictable, for a tutorial or a test. |
 | `nearest_friend` | Beside a living team-mate. |
-| `first` | The first that passes. For a course with one start. |
+| `first` | The first that passes, for a course with one start. |
 
-`DotSpawnRules` is a `DotConfig`, so all of it layers: exported defaults < JSON file < environment < command line.
+## Conditions
 
-## Conditions veto; weights merely argue
+`DotSpawnCondition.allows()` is a veto and `bonus()` is a preference. Keep them apart: a veto written as a big penalty still picks the forbidden site when it is the only one left.
 
-`DotSpawnCondition.allows()` is a veto and `bonus()` is an opinion, and keeping them apart is the point. A condition that expresses a veto as a large penalty **will still pick the forbidden site when it is the only one left** — which is how a game ends up spawning the attacking team inside the defenders' base in the one round where it matters.
+| Shipped condition | Vetoes |
+| --- | --- |
+| `MinimumEnemyDistance` | Sites too close to an enemy. |
+| `OutOfSight` | Sites an enemy can see. |
+| `NotOccupied` | Sites with someone on them. |
+| `MetaEquals` | Sites whose metadata does not match. |
 
-Four ship: `MinimumEnemyDistance`, `OutOfSight`, `NotOccupied`, `MetaEquals`. Subclass `DotSpawnCondition` for the fifth.
+Subclass `DotSpawnCondition` for your own.
 
-## When everything fails, something still spawns
+When nothing passes, something still spawns (`fall_back_when_nothing_passes`, default on), because a black screen looks like a crash. The choice comes back with `fell_back` set, a reason, a log warning and a signal, since a map whose conditions can never be met is a content bug.
 
-`fall_back_when_nothing_passes` defaults to on, and it has to. A round where every site fails its conditions is a round where nobody spawns, and **a player looking at a black screen cannot tell that from a crash**. The choice comes back with `fell_back` set, a reason attached, a warning in the log and a signal fired — because a map whose conditions can never be satisfied is a content bug and is otherwise completely invisible.
+## Respawn timers
 
-## The randomness is per request, not per director
+`queue_respawn`, `take_due` and `advance`. Queuing somebody twice keeps the earlier time. Due keys come out sorted so two machines agree. `wave_respawn` holds everybody until the next wave boundary.
 
-One generator seeded from `(seed, tick, key)` per call, never a shared member. A single stream makes a spawn depend on how many *other* spawns happened first, so a server that processed two deaths this tick and a client that saw one get different points — and the player materialises in two places. The suite checks two directors agree over forty choices, and checks a different seed disagrees, because a test that cannot fail is not a test.
+Randomness is seeded per request from `(seed, tick, key)`, so a server and a client that saw different numbers of other spawns still agree on the point.
 
-## Respawn timers, including waves
+## Settings
 
-`queue_respawn`, `take_due`, `advance`. Queuing somebody twice keeps the earlier time — a kill credited twice must not push a respawn further away. Due keys come out **sorted**, because a dictionary's key order is not a promise and two machines disagreeing about it is a desync with no obvious cause.
+`DotSpawnRules` is a `DotConfig`: exported defaults, then a JSON file, then environment, then command line.
 
-`wave_respawn` holds everybody until the next boundary, which is the round-based modes' answer to a steady trickle of players arriving one at a time into a fight that is already lost.
+## dot-match
 
-## What it does not do
+dot-match has its own simpler `DotSpawnPoint` and `DotSpawnSelector` (one point per player, dependency-free), which stay. Use dot-spawn when you need areas, conditions, waves, protection or 2D.
 
-It does not move anything. It answers a question and emits a signal; the game does the spawning. It does not raycast — `can_see_fn` is supplied, because this addon has no opinion about which collision layers count and dot-physics already does. It does not know what health is.
+## Testing
 
-## Relationship to dot-match
+Import the project once, then run the self-test scene in `examples/` headless with Godot.
 
-dot-match has its own `DotSpawnPoint` and `DotSpawnSelector`, and they stay. Those are the *match's* view: one point per player, picked by danger, sufficient for a deathmatch and dependency-free. dot-spawn is the larger one — areas, conditions, waves, protection, 2D — for a game that needs it. A game may use either; using both means picking which one the match asks.
+## Status and licence
 
-## Licence
+Part of the TMC **dot-\*** family of Godot addons. Written with Claude Code and maintained by `gamemann`. Every addon has headless tests, but little of this has been played by real users yet, so expect rough edges and please [open an issue](https://github.com/modcommunity/dot-spawn/issues) when you hit one.
 
-MIT. See [LICENSE](LICENSE).
+MIT licence, see [LICENSE](LICENSE). The only closed part of the TMC platform is the web back end; you can use your own instead of TMC's.
