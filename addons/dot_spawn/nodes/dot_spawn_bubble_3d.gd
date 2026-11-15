@@ -1,12 +1,9 @@
 class_name DotSpawnBubble3D
 extends Node3D
 
-## A translucent bubble drawn around a spawn-protected body.
-##
-## Presentation only: it reads nothing from the ledger. A game calls [method sync] each
-## frame with "is this body protected", and the bubble shows, hides and follows. Attach
-## it as a child of the body (it then follows for free) or give it a [member target].
-## Gated by [code]DotSpawnRules.protection_bubble[/code] on the caller's side.
+## A translucent bubble drawn around a spawn-protected body. Presentation only, it reads nothing from the ledger: a game calls [method sync]
+## each frame with "is this body protected", and the bubble shows, hides and follows. Attach it as a child of the body (it then follows
+## for free) or give it a [member target]. Gated by [code]DotSpawnRules.protection_bubble[/code] on the caller's side.
 
 const SHADER_CODE := """
 shader_type spatial;

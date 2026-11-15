@@ -21,10 +21,9 @@ var mode: int = 0
 ## How much distance from the nearest team-mate is worth. Negative prefers company.
 @export_range(-100.0, 100.0, 0.1) var friend_distance_weight: float = 0.0
 
-## Score subtracted from a site an enemy can currently see.
-##
-## Large on purpose. Spawning in view of somebody who is already aiming is the single
-## worst thing a spawn selector does, and it is worth walking a long way to avoid.
+## Score subtracted from a site an enemy can currently see. Large on purpose: spawning in view of
+## somebody who is already aiming is the single worst thing a spawn selector does, and it is worth
+## walking a long way to avoid.
 @export_range(0.0, 100000.0, 1.0) var visible_penalty: float = 500.0
 
 ## Score subtracted from a site inside [member cooldown_ticks] of its last use.
