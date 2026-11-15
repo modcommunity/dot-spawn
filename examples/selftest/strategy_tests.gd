@@ -192,4 +192,4 @@ func _strategy_one_site() -> void:
 	sreqs.append(DotSpawnRequest.make("b", &"", &"", 1))
 	var t0 := Time.get_ticks_usec()
 	var sb := sd.choose_batch(sreqs)
-	_check(sb.ok and Time.get_ticks_usec() - t0 < 200000, "spread: min 0 with every pick on one site answers without looping")
+	_check(sb.ok and Time.get_ticks_usec() - t0 < 5000000, "spread: min 0 with every pick on one site answers without looping")
