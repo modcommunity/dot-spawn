@@ -721,6 +721,41 @@ func _test_protection() -> void:
 	p.revoke("zoe", 5)
 	_check(not p.is_protected("zoe", 5), "and it can be taken away outright")
 
+	_protection_distance(rules, p, ended)
+
+	rules.protection_sec = 0.0
+	var none := p.grant("kit", 77, RATE)
+	_check(
+		none == 77 and not p.is_protected("kit", 77),
+		"a zero-length grant returns the spawn tick rather than being a special case "
+		+ "every caller has to branch on"
+	)
+
+	_check(p.describe_lines().size() >= 1, "and it describes itself")
+	p.clear()
+	_check(p.protected_keys().is_empty(), "and clears")
+
+	_protection_via_director()
+
+
+## A director grants protection as part of choosing and advances it.
+func _protection_via_director() -> void:
+	# Through the director.
+	var d := _director(DotSpawnRules.team_deathmatch())
+	var res := d.choose_from(_grid(3), DotSpawnRequest.make("ada", &"", &"", 0))
+	_check(
+		(res.value as DotSpawnChoice).protected_until > 0,
+		"a director grants protection as part of choosing, so no caller has to remember"
+	)
+	_check(d.protection.is_protected("ada", 10), "and the ledger knows")
+	_check(d.advance(10000).is_empty(), "one call advances protection and respawns")
+	_check(not d.protection.is_protected("ada", 10000), "and the protection is over")
+
+	d.queue_free()
+
+
+## Distance: two feet of travel in any direction, once, from where it was granted.
+func _protection_distance(rules: DotSpawnRules, p: DotSpawnProtection, ended: Array) -> void:
 	# Distance: two feet of travel in any direction, once, from where it was granted.
 	rules.protection_sec = 0.5
 	rules.protection_breaks_on_attack = true
@@ -742,28 +777,3 @@ func _test_protection() -> void:
 	rules.protection_breaks_on_distance = true
 	p.grant("eve", 0, RATE)
 	_check(not p.note_position("eve", Vector3(99, 99, 99), 2), "a grant without a position never distance-breaks")
-
-	rules.protection_sec = 0.0
-	var none := p.grant("kit", 77, RATE)
-	_check(
-		none == 77 and not p.is_protected("kit", 77),
-		"a zero-length grant returns the spawn tick rather than being a special case "
-		+ "every caller has to branch on"
-	)
-
-	_check(p.describe_lines().size() >= 1, "and it describes itself")
-	p.clear()
-	_check(p.protected_keys().is_empty(), "and clears")
-
-	# Through the director.
-	var d := _director(DotSpawnRules.team_deathmatch())
-	var res := d.choose_from(_grid(3), DotSpawnRequest.make("ada", &"", &"", 0))
-	_check(
-		(res.value as DotSpawnChoice).protected_until > 0,
-		"a director grants protection as part of choosing, so no caller has to remember"
-	)
-	_check(d.protection.is_protected("ada", 10), "and the ledger knows")
-	_check(d.advance(10000).is_empty(), "one call advances protection and respawns")
-	_check(not d.protection.is_protected("ada", 10000), "and the protection is over")
-
-	d.queue_free()

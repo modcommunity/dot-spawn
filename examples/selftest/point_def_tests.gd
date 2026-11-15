@@ -58,6 +58,41 @@ func _test_point_defs() -> void:
 	_check(_def("z").to_site().cooldown_ticks == -1, "no cooldown set inherits the rules' default")
 	_check(DotSpawnPointDef.schema().size() == full.to_dict().size(), "the editor schema lists every setting")
 
+	_point_def_conditions()
+
+	var d := _director(DotSpawnRules.deathmatch())
+	d.conditions = [DotSpawnConditions.MaxAlive.new(), DotSpawnConditions.WeightBonus.new()]
+	var low := _def("low", Vector3(0, 0, 0))
+	var high := _def("high", Vector3(50, 0, 0))
+	high.weight = 4.0
+	d.add_site(low.to_site())
+	d.add_site(high.to_site())
+	var res := d.choose(DotSpawnRequest.make("ada", &"", &"", 0))
+	_check(res.ok and (res.value as DotSpawnChoice).site.id == &"high", "through the director a heavier point wins")
+	high.max_alive = 1
+	d.clear_sites()
+	d.add_site(low.to_site())
+	d.add_site(high.to_site())
+	res = d.choose(DotSpawnRequest.make("ada", &"", &"", 0, {"alive_by_site": {&"high": 1}}))
+	_check(res.ok and (res.value as DotSpawnChoice).site.id == &"low", "and a full point is skipped")
+	d.queue_free()
+
+	var sites: Array[DotSpawnSite] = [DotSpawnSite.point(&"m1", Vector3.ZERO), DotSpawnSite.point(&"m2", Vector3(5, 0, 0))]
+	var ov := DotSpawnPointSet.new()
+	var m1 := _def("m1", Vector3(7, 0, 0))
+	m1.enabled = false
+	ov.add(m1)
+	ov.add(_def("extra", Vector3(1, 1, 1)))
+	var before := sites[0]
+	var n := ov.apply_to(sites)
+	_check(n == 2 and sites.size() == 3 and sites[0].id == &"m1" and not sites[0].enabled and sites[0].position.x == 7.0, "map points are overridden by id and extras added")
+	_check(before.enabled and before.position == Vector3.ZERO and sites[1].id == &"m2", "the map's own site object is never edited, and untouched points stay")
+	var clean: Array[DotSpawnSite] = [DotSpawnSite.point(&"m1", Vector3.ZERO)]
+	_check(DotSpawnPointSet.new().apply_to(clean) == 0 and clean[0].enabled, "an empty set gives back what the map shipped")
+
+
+## The stock conditions, one point at a time: MaxAlive, PhaseIs, KindIs, DistanceBand, SightRule and WeightBonus.
+func _point_def_conditions() -> void:
 	var p := _def("p")
 	p.max_alive = 2
 	var alive := {"alive_by_site": {&"p": 2}}
@@ -102,33 +137,3 @@ func _test_point_defs() -> void:
 	none.weight = 0.0
 	_check(w.bonus(heavy.to_site(), {}) == 200.0 and w.bonus(_def("o").to_site(), {}) == 0.0, "WeightBonus scores weight above one")
 	_check(not _allowed(none, w), "and a zero weight is a veto")
-
-	var d := _director(DotSpawnRules.deathmatch())
-	d.conditions = [DotSpawnConditions.MaxAlive.new(), DotSpawnConditions.WeightBonus.new()]
-	var low := _def("low", Vector3(0, 0, 0))
-	var high := _def("high", Vector3(50, 0, 0))
-	high.weight = 4.0
-	d.add_site(low.to_site())
-	d.add_site(high.to_site())
-	var res := d.choose(DotSpawnRequest.make("ada", &"", &"", 0))
-	_check(res.ok and (res.value as DotSpawnChoice).site.id == &"high", "through the director a heavier point wins")
-	high.max_alive = 1
-	d.clear_sites()
-	d.add_site(low.to_site())
-	d.add_site(high.to_site())
-	res = d.choose(DotSpawnRequest.make("ada", &"", &"", 0, {"alive_by_site": {&"high": 1}}))
-	_check(res.ok and (res.value as DotSpawnChoice).site.id == &"low", "and a full point is skipped")
-	d.queue_free()
-
-	var sites: Array[DotSpawnSite] = [DotSpawnSite.point(&"m1", Vector3.ZERO), DotSpawnSite.point(&"m2", Vector3(5, 0, 0))]
-	var ov := DotSpawnPointSet.new()
-	var m1 := _def("m1", Vector3(7, 0, 0))
-	m1.enabled = false
-	ov.add(m1)
-	ov.add(_def("extra", Vector3(1, 1, 1)))
-	var before := sites[0]
-	var n := ov.apply_to(sites)
-	_check(n == 2 and sites.size() == 3 and sites[0].id == &"m1" and not sites[0].enabled and sites[0].position.x == 7.0, "map points are overridden by id and extras added")
-	_check(before.enabled and before.position == Vector3.ZERO and sites[1].id == &"m2", "the map's own site object is never edited, and untouched points stay")
-	var clean: Array[DotSpawnSite] = [DotSpawnSite.point(&"m1", Vector3.ZERO)]
-	_check(DotSpawnPointSet.new().apply_to(clean) == 0 and clean[0].enabled, "an empty set gives back what the map shipped")
