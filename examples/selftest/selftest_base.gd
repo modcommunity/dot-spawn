@@ -1,6 +1,6 @@
 extends Node
 
-## Shared state and assertions for the dot-spawn self-test layers.
+## Shared state and assertions for the GameSpice Spawn self-test layers.
 
 const RATE := 64
 

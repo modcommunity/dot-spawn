@@ -6,16 +6,16 @@ The plan for six connected pieces: a headless bot soak test per game, automatic 
 
 | Piece | Owner | Why there |
 | --- | --- | --- |
-| Point definitions, strategies, spread, NPC site rules | dot-spawn | Choosing a place is what dot-spawn is; it already has sites, conditions, modes and the fallback |
-| Mover watch (stuck, off nav, fell out, unreachable) and the cull rule | dot-spawn | The other end of a spawn: who leaves the world, and where a relocated mover goes back in. Depends on dot-core only, so bots and NPCs can both feed it |
-| Soak harness and its report | dot-bot | Every game with bots links dot-bot; the harness drives a game through a duck-typed adapter and takes the watch the same way, so dot-bot keeps its dot-core-only dependency |
-| Map data bundle, store interface, stores | dot-map | The bundle is keyed by map id and version and ships beside the map in its pack; dot-map owns both |
-| Nav rebake and hand links as data | dot-bot (`DotBotNav`), dot-npc-ai (`DotNpcAiNavAnnotations`) | They own the mesh and the links; they gain add, remove and `to_dict` for hand-made links, nothing more |
-| Admin commands and the edit overlay | dot-game | The wiring every game repeats; it already reaches dot-server's admin flags and the console and chat command hosts |
+| Point definitions, strategies, spread, NPC site rules | GameSpice Spawn | Choosing a place is what GameSpice Spawn is; it already has sites, conditions, modes and the fallback |
+| Mover watch (stuck, off nav, fell out, unreachable) and the cull rule | GameSpice Spawn | The other end of a spawn: who leaves the world, and where a relocated mover goes back in. Depends on GameSpice Core only, so bots and NPCs can both feed it |
+| Soak harness and its report | GameSpice Bot | Every game with bots links GameSpice Bot; the harness drives a game through a duck-typed adapter and takes the watch the same way, so GameSpice Bot keeps its dot-core-only dependency |
+| Map data bundle, store interface, stores | GameSpice Map | The bundle is keyed by map id and version and ships beside the map in its pack; GameSpice Map owns both |
+| Nav rebake and hand links as data | GameSpice Bot (`DotBotNav`), GameSpice NPC AI (`DotNpcAiNavAnnotations`) | They own the mesh and the links; they gain add, remove and `to_dict` for hand-made links, nothing more |
+| Admin commands and the edit overlay | GameSpice Game | The wiring every game repeats; it already reaches GameSpice Server's admin flags and the console and chat command hosts |
 | NPC director using authored sites | dot-npc-ai-director | Its `spawn_points` today are bare positions; it gains a per-site rule callable |
 | Wiring | each game | A few lines: hand the director its sites, the watch its movers, the harness its adapter |
 
-Nothing here needs a new addon, and no game keeps its own copy of any of it. game-zombie-zone's `tools/stuck_meter.gd`, `game/zz_unstick.gd`, `_fell_out` and `clear_wave_stragglers` are the measured prototypes and are retired into dot-spawn.
+Nothing here needs a new addon, and no game keeps its own copy of any of it. game-zombie-zone's `tools/stuck_meter.gd`, `game/zz_unstick.gd`, `_fell_out` and `clear_wave_stragglers` are the measured prototypes and are retired into GameSpice Spawn.
 
 ## The mover watch
 
@@ -51,17 +51,17 @@ A strategy is the policy over the pool; `DotSpawnRules.strategy` names an ordere
 - `grouped`: built. A team (or `extra["group"]` on the request) spawns together: the group's first request anchors it (anchors spread from each other), the rest take unused sites within `group_radius` of the anchor, else the nearest unused. Deterministic for the same seed and tick; read by `choose_batch`. `reset_groups()` forgets the anchors and taken sites; `refresh()` and a map change in `ensure_generated` call it, so a new round or map starts with no group.
 - `near_team`, `far_from_enemies`: the existing `NEAREST_FRIEND` and `FURTHEST` modes, named.
 
-A map whose authors only placed a start room has nothing to spread over, so the pool can also take `generated` sites: a game hands `generate_fn` that returns points over its navigation (an even spread with clearance, from `DotBotNav.random_point` or the dot-npc graph, as zombie-zone already does for its NPCs), cached per map id, map version, `generate_count` and `generate_clearance`, so changing either asks the game again. Settings: `spawn_strategy` (default `map`, so nothing changes until a game opts in), `spawn_spread_distance`, `spawn_spread_min`, `spawn_generate` (`off`, `when_few`, `always`), `spawn_generate_count`, `spawn_generate_clearance`.
+A map whose authors only placed a start room has nothing to spread over, so the pool can also take `generated` sites: a game hands `generate_fn` that returns points over its navigation (an even spread with clearance, from `DotBotNav.random_point` or the GameSpice NPC graph, as zombie-zone already does for its NPCs), cached per map id, map version, `generate_count` and `generate_clearance`, so changing either asks the game again. Settings: `spawn_strategy` (default `map`, so nothing changes until a game opts in), `spawn_spread_distance`, `spawn_spread_min`, `spawn_generate` (`off`, `when_few`, `always`), `spawn_generate_count`, `spawn_generate_clearance`.
 
 ## The store
 
-`DotMapDataStore` in dot-map, with the shape of every store in the family: each method returns a `DotResult` and may be a coroutine, the base refuses what it does not implement. `load(game, map_id, map_version)`, `save(bundle, by)`, `list(game, map_id)`, `remove(...)`. Implementations: memory (tests), file (`user://map_data/<game>/<map_id>/<version>.json`, with `DotWeb.sync_filesystem()` after a write), pack (read-only, the bundle shipped inside the map's pack), sql (one table keyed by game, map id, version and section, through dot-sql, schema beside it as the other stores do) and http (the backbone API, through `HTTPRequest`). Configuration is layered as always: `map_data_store` (`file`, `sql`, `http`), `map_data_path`, `map_data_url`; a token for http is a sensitive key and is refused from the environment and argv.
+`DotMapDataStore` in GameSpice Map, with the shape of every store in the family: each method returns a `DotResult` and may be a coroutine, the base refuses what it does not implement. `load(game, map_id, map_version)`, `save(bundle, by)`, `list(game, map_id)`, `remove(...)`. Implementations: memory (tests), file (`user://map_data/<game>/<map_id>/<version>.json`, with `DotWeb.sync_filesystem()` after a write), pack (read-only, the bundle shipped inside the map's pack), sql (one table keyed by game, map id, version and section, through GameSpice SQL, schema beside it as the other stores do) and http (the backbone API, through `HTTPRequest`). Configuration is layered as always: `map_data_store` (`file`, `sql`, `http`), `map_data_path`, `map_data_url`; a token for http is a sensitive key and is refused from the environment and argv.
 
 Reading layers the sources: the pack's bundle is the default, the store's is the override, section by section. Keying by map version means an edited map does not inherit spawns placed for its old geometry; `load` falls back to the newest older version with a warning and marks the result `stale`, and the editor offers to keep or drop it.
 
 ## The bundle and sharing
 
-One JSON file carries a map's tool data: `{"format": "dot-map-data", "schema": 1, "game", "map": {"id", "version", "digest"}, "meta": {"author", "created", "note"}, "sections": {...}}`. Sections are opaque dictionaries owned by their producers: `spawns` (dot-spawn's point set), `nav_settings` (the bake's agent and mask), `nav_links` (hand-made links: ladder, door, jump, drop, with both ends and flags), `nav_annotations` (the generated annotations, optional because they are a cache) and `cull` (the map's cull overrides). The baked mesh is not exported: it is rebuilt deterministically from the colliders and the settings, and a mesh is the largest and least portable part.
+One JSON file carries a map's tool data: `{"format": "dot-map-data", "schema": 1, "game", "map": {"id", "version", "digest"}, "meta": {"author", "created", "note"}, "sections": {...}}`. Sections are opaque dictionaries owned by their producers: `spawns` (GameSpice Spawn's point set), `nav_settings` (the bake's agent and mask), `nav_links` (hand-made links: ladder, door, jump, drop, with both ends and flags), `nav_annotations` (the generated annotations, optional because they are a cache) and `cull` (the map's cull overrides). The baked mesh is not exported: it is rebuilt deterministically from the colliders and the settings, and a mesh is the largest and least portable part.
 
 An imported file is untrusted input. Import checks the format and schema, refuses a different map id, warns on a different version or geometry digest and needs `force`, caps every count and string length, keeps only known section names, and never carries a script path or resource path that is loaded. Commands: `mapdata_export [path]` and `mapdata_import <path> [force]` on the server, and the same as a file save and open in the overlay.
 
@@ -71,26 +71,26 @@ dot-game installs one command set, duck-typed on the console and chat hosts like
 
 The client half is an overlay any admin can toggle: markers for every point (colour by kind and team, a disc for the radius, an arrow for facing, greyed when disabled), the nav links and, on request, the mesh; a point picked by looking at it opens a panel with every setting as a form, built from the point definition's own schema so a new setting needs no UI change. The toolgun in the sandbox game becomes a thin mode over the same commands, so there is one editor with two ways to point at things.
 
-`nav-admin-rebake-tool` is this plan's navigation half: it adds the rebake and the link data in dot-bot and dot-npc-ai, and the commands and overlay here call them.
+`nav-admin-rebake-tool` is this plan's navigation half: it adds the rebake and the link data in GameSpice Bot and GameSpice NPC AI, and the commands and overlay here call them.
 
 ## Tasks
 
 | Key | Repo | Size | After |
 | --- | --- | --- | --- |
-| `spawn-watch-cull` | dot-spawn | M | |
-| `bot-soak-harness` | dot-bot | M | `spawn-watch-cull` |
+| `spawn-watch-cull` | GameSpice Spawn | M | |
+| `bot-soak-harness` | GameSpice Bot | M | `spawn-watch-cull` |
 | `zz-watch-cull-wire` | game-zombie-zone | S | `spawn-watch-cull` |
 | `soak-FC` | game-fatal-contact | S | `bot-soak-harness` |
 | `soak-zombie-zone` | game-zombie-zone | S | `soak-FC`, `zz-watch-cull-wire` |
 | `soak-rollout` | the other games with bots, one builder each | S each | `soak-FC` |
-| `spawn-spread-strategy` | dot-spawn | M | `spawn-watch-cull` |
-| `spawn-point-defs` | dot-spawn | M | `spawn-spread-strategy` |
-| `map-data-store` | dot-map | M | `spawn-point-defs` |
+| `spawn-spread-strategy` | GameSpice Spawn | M | `spawn-watch-cull` |
+| `spawn-point-defs` | GameSpice Spawn | M | `spawn-spread-strategy` |
+| `map-data-store` | GameSpice Map | M | `spawn-point-defs` |
 | `map-data-remote` | dot-map | M | `map-data-store` |
 | `map-data-backbone-api` | website-city | M | `map-data-store` |
-| `nav-admin-rebake-tool` | dot-bot, dot-npc-ai | M | `nav-doors-ladders` |
-| `map-edit-commands` | dot-game | L | `map-data-store`, `nav-admin-rebake-tool` |
-| `map-edit-overlay` | dot-game | M | `map-edit-commands` |
+| `nav-admin-rebake-tool` | GameSpice Bot, GameSpice NPC AI | M | `nav-doors-ladders` |
+| `map-edit-commands` | GameSpice Game | L | `map-data-store`, `nav-admin-rebake-tool` |
+| `map-edit-overlay` | GameSpice Game | M | `map-edit-commands` |
 | `npc-director-sites` | dot-npc-ai-director | M | `spawn-point-defs` |
 | `playground-spawn-tool` | game-playlot | S | `map-edit-commands` |
 

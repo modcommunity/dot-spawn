@@ -5,7 +5,7 @@ Decides where players, NPCs and props enter the world, and why that place rather
 ## Install
 
 1. Get [Godot 4.7](https://godotengine.org/download).
-2. Either use [dot-bootstrap](https://github.com/gamespice-platform/bootstrap), which clones every project and links the addons, or copy `addons/dot_spawn/` and [dot-core](https://github.com/gamespice-platform/core)'s `addons/dot_core/` into your project and enable both in *Project > Project Settings > Plugins*.
+2. Either use [GameSpice Bootstrap](https://github.com/gamespice-platform/bootstrap), which clones every project and links the addons, or copy `addons/dot_spawn/` and [GameSpice Core](https://github.com/gamespice-platform/core)'s `addons/dot_core/` into your project and enable both in *Project > Project Settings > Plugins*.
 
 ## Use
 
@@ -81,7 +81,7 @@ Randomness is seeded per request from `(seed, tick, key)`, so a server and a cli
 
 ## Match
 
-dot-match has its own simpler `DotSpawnPoint` and `DotSpawnSelector` (one point per player, dependency-free), which stay. Use dot-spawn when you need areas, conditions, waves, protection or 2D.
+GameSpice Match has its own simpler `DotSpawnPoint` and `DotSpawnSelector` (one point per player, dependency-free), which stay. Use GameSpice Spawn when you need areas, conditions, waves, protection or 2D.
 
 ## Testing
 

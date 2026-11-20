@@ -43,7 +43,7 @@ class MinimumEnemyDistance extends DotSpawnCondition:
 ##
 ## Uses the [code]can_see[/code] callable out of the context rather than casting a ray
 ## itself, because this addon has no opinion about which collision layers count and
-## dot-physics already does.
+## GameSpice Physics already does.
 class OutOfSight extends DotSpawnCondition:
 	## Whether being seen is a veto or merely a penalty.
 	var hard: bool = false

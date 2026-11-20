@@ -6,7 +6,7 @@ extends RefCounted
 ## [b]A ledger, not a behaviour.[/b] It grants, expires and revokes; it never touches
 ## health, never subscribes to a damage signal and never knows what a weapon is. A
 ## damage system asks [method blocks] one question and gets one answer, which is what
-## lets dot-combat use it without dot-spawn depending on dot-combat, and lets a game
+## lets GameSpice Combat use it without GameSpice Spawn depending on GameSpice Combat, and lets a game
 ## with neither use it for something else entirely.
 ##
 ## Counted in ticks throughout, like everything else in this family, because a wall

@@ -1,7 +1,7 @@
 @tool
 extends EditorPlugin
 
-## Editor entry point for dot-spawn. Registers inspector types only.
+## Editor entry point for GameSpice Spawn. Registers inspector types only.
 ##
 ## No autoloads: a listen server runs a director for the game it is hosting and another
 ## for the one it is previewing, which is the case an autoload forbids.

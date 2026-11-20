@@ -53,7 +53,7 @@ Set `watch` to a `DotSpawnWatch`, a `DotSpawnCull` or anything with `report(id, 
 
 ## Weapon example
 
-The factory is the only place that knows what a weapon id means, so the spawner never names dot-weapon:
+The factory is the only place that knows what a weapon id means, so the spawner never names GameSpice Weapon:
 
 ```gdscript
 s.factory = func(weapon_id: StringName, pos: Vector3, _i: int) -> Variant:

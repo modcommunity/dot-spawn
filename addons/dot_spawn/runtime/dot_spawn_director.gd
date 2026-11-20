@@ -63,7 +63,7 @@ var friends_fn: Callable = Callable()
 
 ## `func(from: Vector3, to: Vector3) -> bool`. Whether one point can see another.
 ##
-## dot-physics' [code]DotPhysicsQuery.line_of_sight_3d[/code] is exactly this shape.
+## GameSpice Physics' [code]DotPhysicsQuery.line_of_sight_3d[/code] is exactly this shape.
 var can_see_fn: Callable = Callable()
 
 ## `func(count: int, clearance: float, map_id: String) -> Array`. Sites over the game's navigation (an even spread with clearance) for [method ensure_generated]; the result is cached per map id and version.
@@ -103,7 +103,7 @@ func _ready() -> void:
 
 ## Re-reads the sites out of the scene. Call after loading a level.
 ##
-## [param announce_empty] exists for the same reason dot-match's does: a host that
+## [param announce_empty] exists for the same reason GameSpice Match's does: a host that
 ## builds its sites in code adds them on the lines after this one, and a warning on the
 ## way past is a false alarm for a condition corrected microseconds later.
 func refresh(announce_empty: bool = true) -> void:

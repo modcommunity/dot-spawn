@@ -12,7 +12,7 @@ extends Area3D
 ## The second half is the one worth designing carefully. An area can be a [b]safe
 ## zone[/b] — things standing in it take no damage — and that is a rule a damage system
 ## asks about rather than a rule this node enforces. [method protects_key] is the whole
-## interface; dot-combat calls it, dot-spawn never calls dot-combat, and a game with
+## interface; GameSpice Combat calls it, GameSpice Spawn never calls GameSpice Combat, and a game with
 ## neither can use it for a shop, a lobby or a finish line.
 ##
 ## [codeblock]
