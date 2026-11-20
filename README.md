@@ -1,3 +1,5 @@
+[![dot-spawn - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/245-dot-spawn)
+
 Decides where players, NPCs and props enter the world, and why that place rather than another. It answers the question and emits a signal; your game does the moving.
 
 ## Install
