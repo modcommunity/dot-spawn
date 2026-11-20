@@ -1,4 +1,4 @@
-[![dot-spawn - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/245-dot-spawn)
+[![Spawn - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/245-dot-spawn)
 
 Decides where players, NPCs and props enter the world, and why that place rather than another. It answers the question and emits a signal; your game does the moving.
 
@@ -79,7 +79,7 @@ Randomness is seeded per request from `(seed, tick, key)`, so a server and a cli
 
 `DotSpawnRules` is a `DotConfig`: exported defaults, then a JSON file, then environment, then command line.
 
-## dot-match
+## Match
 
 dot-match has its own simpler `DotSpawnPoint` and `DotSpawnSelector` (one point per player, dependency-free), which stay. Use dot-spawn when you need areas, conditions, waves, protection or 2D.
 
